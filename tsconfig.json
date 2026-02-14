@@ -7,6 +7,11 @@
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
+    "paths": {
+      "ng-platform-noop": [
+        "./dist/ng-platform-noop"
+      ]
+    },
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
     "isolatedModules": true,
@@ -21,5 +26,19 @@
     "strictInputAccessModifiers": true,
     "strictTemplates": true
   },
-  "files": []
+  "files": [],
+  "references": [
+    {
+      "path": "./projects/ng-platform-noop/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/ng-platform-noop/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/sample-noop-app/tsconfig.app.json"
+    },
+    {
+      "path": "./projects/sample-noop-app/tsconfig.spec.json"
+    }
+  ]
 }

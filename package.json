@@ -3,10 +3,11 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build",
-    "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "build": "npm run build:lib && npm run build:app",
+    "build:lib": "ng build ng-platform-noop",
+    "build:app": "ng build sample-noop-app --configuration development",
+    "prestart": "npm run build",
+    "start": "node ./dist/sample-noop-app/browser/main.js"
   },
   "prettier": {
     "printWidth": 100,
@@ -33,8 +34,12 @@
     "tslib": "^2.3.0"
   },
   "devDependencies": {
+    "@angular/build": "^21.1.4",
     "@angular/cli": "^21.1.1",
     "@angular/compiler-cli": "^21.1.0",
-    "typescript": "~5.9.2"
+    "jsdom": "^27.1.0",
+    "ng-packagr": "^21.1.0",
+    "typescript": "~5.9.2",
+    "vitest": "^4.0.8"
   }
 }

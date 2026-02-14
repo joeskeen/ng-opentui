@@ -1,0 +1,153 @@
+import { IMAGE_CONFIG, ImageConfig } from '@angular/common';
+import {
+  ApplicationConfig,
+  ApplicationRef,
+  PlatformRef,
+  Type,
+  ɵinternalCreateApplication,
+  createPlatformFactory,
+  platformCore,
+  StaticProvider,
+  RendererFactory2,
+  ErrorHandler,
+  ɵINJECTOR_SCOPE,
+} from '@angular/core';
+import { NoopRendererFactory2 } from './noop-providers';
+
+/**
+ * Angular's compiler automatically assigns a default CSS selector
+ * (e.g., ['ng-component']) to any component that does not explicitly
+ * declare one. In a DOM‑based platform this is required so Angular can
+ * locate an existing host element during bootstrap.
+ *
+ * A noop platform has no DOM and therefore must never attempt to
+ * query for a host element. By replacing the compiled Ivy selector
+ * list with `[[]]`, we signal to Angular that the component has no
+ * selector. This forces Angular's bootstrap logic to *create* a host
+ * element instead of trying to *locate* one, which avoids DOM access
+ * and aligns with the invariants of a selector‑less, non‑browser
+ * environment.
+ *
+ * This mutation must occur before Angular reads the component's Ivy
+ * definition during bootstrap.
+ * 
+ * This function will only ever need to be called on the root, since
+ * any child components would be created, not expected to already exist.
+ *
+ * @param cmp The component type whose Ivy metadata should be patched.
+ */
+function stripSelectors(cmp: any) {
+  if (cmp.ɵcmp && cmp.ɵcmp.selectors) {
+    cmp.ɵcmp.selectors = [[]];
+  }
+}
+
+/**
+ * Identifier for the noop platform. A noop platform provides Angular's
+ * dependency injection and change detection infrastructure without any
+ * browser or DOM APIs. It is intended for environments such as Node,
+ * CLIs, testing harnesses, or custom renderers where no DOM is present.
+ */
+const PLATFORM_NOOP_ID = 'noop';
+
+/**
+ * Minimal provider set required for Angular to bootstrap in a non‑DOM
+ * environment.
+ *
+ * Through iterative elimination, these were identified as the smallest
+ * set of providers that Angular's bootstrap pipeline depends on:
+ *
+ *   • ɵINJECTOR_SCOPE — required so Angular can assign the root injector
+ *     scope and generate a valid application ID.
+ *
+ *   • ErrorHandler — Angular always injects an ErrorHandler during
+ *     application bootstrap. Without this, DI throws NG0402.
+ *
+ *   • RendererFactory2 — Angular requires a renderer even if no DOM is
+ *     present. The NoopRendererFactory2 satisfies this contract without
+ *     performing any rendering.
+ *
+ *   • IMAGE_CONFIG — Angular's image directive expects this token to be
+ *     present. Providing a minimal config avoids NG0210 errors in apps
+ *     that include the directive, even if images are never rendered.
+ *
+ * All other browser‑specific providers (Document, PlatformLocation,
+ * Sanitizer, XHR, ViewportScroller, etc.) are optional in a noop
+ * environment and can be safely omitted.
+ *
+ * This list represents the true minimal surface area required for
+ * Angular to run without a DOM.
+ */
+
+const NOOP_PLATFORM_APPLICATION_STATIC_PROVIDERS: StaticProvider[] = [
+  /** without this you get "ɵNotFound: NG0201: No provider found for `InjectionToken AppId`." */
+  { provide: ɵINJECTOR_SCOPE, useValue: 'root' },
+  /** without this you get "RuntimeError: NG0402: A required Injectable was not found in the dependency injection tree." */
+  { provide: ErrorHandler, useClass: ErrorHandler, deps: [] },
+  /** without this you get "RuntimeError: NG0407: Angular was not able to inject a renderer (RendererFactory2)." */
+  { provide: RendererFactory2, useClass: NoopRendererFactory2, deps: [] },
+  /** without this you get "ERROR RuntimeError: NG0210: The document object is not available in this context. Make sure the DOCUMENT injection token is provided." */
+  {
+    provide: IMAGE_CONFIG,
+    useValue: { disableImageSizeWarning: true, disableImageLazyLoadWarning: true } as ImageConfig,
+  },
+];
+
+/**
+ * Platform‑level providers for the noop platform.
+ *
+ * In a browser platform, this array would supply low‑level services such
+ * as PlatformLocation, LocationStrategy, Sanitizer, and others that the
+ * Angular platform runtime depends on. Through iterative elimination, it
+ * was determined that none of these are required for a minimal, DOM‑less
+ * Angular bootstrap.
+ *
+ * As a result, the noop platform does not install any platform‑level
+ * providers. Angular's core platform logic (platformCore) is sufficient
+ * when combined with the minimal application‑level providers above.
+ */
+const INTERNAL_NOOP_PLATFORM_PROVIDERS: StaticProvider[] = [];
+
+/**
+ * Creates a noop Angular platform instance.
+ *
+ * This mirrors Angular's `platformBrowser` and `platformServer` entry
+ * points, but without installing any browser‑specific platform services.
+ * The noop platform relies entirely on Angular's core platform runtime
+ * (`platformCore`) and the minimal application‑level providers defined
+ * above.
+ *
+ * The result is a fully functional Angular platform that can bootstrap
+ * applications without DOM, browser, or zone dependencies.
+ */
+export function platformNoop(): PlatformRef {
+  return createPlatformFactory(platformCore, PLATFORM_NOOP_ID, INTERNAL_NOOP_PLATFORM_PROVIDERS)();
+}
+
+/**
+ * Bootstraps an Angular application using the noop platform.
+ *
+ * This function mirrors Angular's `bootstrapApplication`, but applies
+ * noop‑specific behavior:
+ *
+ *   • Strips selectors from the root component so Angular creates a
+ *     host element instead of querying the DOM.
+ *   • Installs noop platform and application providers.
+ *   • Uses Angular's internal `ɵinternalCreateApplication` to avoid
+ *     browser‑specific bootstrap logic.
+ *
+ * The result is a fully bootstrapped Angular application running in a
+ * non‑DOM environment.
+ */
+export async function bootstrapApplication(
+  component: Type<unknown>,
+  applicationConfig: ApplicationConfig,
+): Promise<ApplicationRef> {
+  stripSelectors(component);
+  return ɵinternalCreateApplication({
+    rootComponent: component,
+    appProviders: [NOOP_PLATFORM_APPLICATION_STATIC_PROVIDERS, ...applicationConfig.providers],
+    platformProviders: INTERNAL_NOOP_PLATFORM_PROVIDERS,
+    platformRef: platformNoop(),
+  });
+}
