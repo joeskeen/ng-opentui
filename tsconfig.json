@@ -8,8 +8,8 @@
     "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
     "paths": {
-      "ng-platform-noop": [
-        "./dist/ng-platform-noop"
+      "ng-platform-opentui": [
+        "./dist/ng-platform-opentui"
       ]
     },
     "noFallthroughCasesInSwitch": true,
@@ -29,16 +29,16 @@
   "files": [],
   "references": [
     {
-      "path": "./projects/ng-platform-noop/tsconfig.lib.json"
+      "path": "./projects/ng-platform-opentui/tsconfig.lib.json"
     },
     {
-      "path": "./projects/ng-platform-noop/tsconfig.spec.json"
+      "path": "./projects/ng-platform-opentui/tsconfig.spec.json"
     },
     {
-      "path": "./projects/sample-noop-app/tsconfig.app.json"
+      "path": "./projects/sample-opentui-app/tsconfig.app.json"
     },
     {
-      "path": "./projects/sample-noop-app/tsconfig.spec.json"
+      "path": "./projects/sample-opentui-app/tsconfig.spec.json"
     }
   ]
 }

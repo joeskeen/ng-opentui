@@ -5,14 +5,14 @@ import {
 
 function noop() {}
 
-export class NoopRendererFactory2 implements RendererFactory2 {
-  createRenderer = () => new NoopRenderer2();
+export class OpentuiRendererFactory2 implements RendererFactory2 {
+  createRenderer = () => new OpentuiRenderer2();
   begin = noop as any;
   end = noop as any;
   whenRenderingDone = noop as any;
 }
 
-class NoopRenderer2 implements Renderer2 {
+class OpentuiRenderer2 implements Renderer2 {
   get data(): { [key: string]: any } {
     return {};
   }

@@ -1,5 +1,5 @@
 {
-  "name": "ng-platform-noop",
+  "name": "ng-platform-opentui",
   "version": "0.0.1",
   "peerDependencies": {
     "@angular/common": "^21.1.0",

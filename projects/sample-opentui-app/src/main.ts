@@ -1,4 +1,4 @@
-import { bootstrapApplication } from 'ng-platform-noop';
+import { bootstrapApplication } from 'ng-platform-opentui';
 import { App } from './app/app';
 
 bootstrapApplication(App, {providers: []})
@@ -6,7 +6,7 @@ bootstrapApplication(App, {providers: []})
     console.log(app, `
       
       🎉 Congrats! Your minimal Angular app successfully bootstrapped on
-      the noop platform! 🎉
+      the opentui platform! 🎉
 
       You can inspect the ApplicationRef object printed above.
 

@@ -6,20 +6,20 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "ng-platform-noop": {
+    "ng-platform-opentui": {
       "projectType": "library",
-      "root": "projects/ng-platform-noop",
-      "sourceRoot": "projects/ng-platform-noop/src",
+      "root": "projects/ng-platform-opentui",
+      "sourceRoot": "projects/ng-platform-opentui/src",
       "prefix": "lib",
       "architect": {
         "build": {
           "builder": "@angular/build:ng-packagr",
           "configurations": {
             "production": {
-              "tsConfig": "projects/ng-platform-noop/tsconfig.lib.prod.json"
+              "tsConfig": "projects/ng-platform-opentui/tsconfig.lib.prod.json"
             },
             "development": {
-              "tsConfig": "projects/ng-platform-noop/tsconfig.lib.json"
+              "tsConfig": "projects/ng-platform-opentui/tsconfig.lib.json"
             }
           },
           "defaultConfiguration": "production"
@@ -27,23 +27,23 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "tsConfig": "projects/ng-platform-noop/tsconfig.spec.json"
+            "tsConfig": "projects/ng-platform-opentui/tsconfig.spec.json"
           }
         }
       }
     },
-    "sample-noop-app": {
+    "sample-opentui-app": {
       "projectType": "application",
       "schematics": {},
-      "root": "projects/sample-noop-app",
-      "sourceRoot": "projects/sample-noop-app/src",
+      "root": "projects/sample-opentui-app",
+      "sourceRoot": "projects/sample-opentui-app/src",
       "prefix": "app",
       "architect": {
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "tsConfig": "projects/sample-noop-app/tsconfig.app.json",
-            "index": "projects/sample-noop-app/src/main.ts"
+            "tsConfig": "projects/sample-opentui-app/tsconfig.app.json",
+            "index": "projects/sample-opentui-app/src/main.ts"
           },
           "configurations": {
             "production": {

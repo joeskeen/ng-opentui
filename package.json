@@ -1,13 +1,13 @@
 {
-  "name": "ng-noop",
+  "name": "ng-opentui",
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
     "build": "npm run build:lib && npm run build:app",
-    "build:lib": "ng build ng-platform-noop",
-    "build:app": "ng build sample-noop-app --configuration development",
+    "build:lib": "ng build ng-platform-opentui",
+    "build:app": "ng build sample-opentui-app --configuration development",
     "prestart": "npm run build",
-    "start": "node ./dist/sample-noop-app/browser/main.js"
+    "start": "node ./dist/sample-opentui-app/browser/main.js"
   },
   "prettier": {
     "printWidth": 100,

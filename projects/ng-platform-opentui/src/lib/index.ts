@@ -12,7 +12,7 @@ import {
   ErrorHandler,
   ɵINJECTOR_SCOPE,
 } from '@angular/core';
-import { NoopRendererFactory2 } from './noop-providers';
+import { OpentuiRendererFactory2 } from './opentui-providers';
 
 /**
  * Angular's compiler automatically assigns a default CSS selector
@@ -20,7 +20,7 @@ import { NoopRendererFactory2 } from './noop-providers';
  * declare one. In a DOM‑based platform this is required so Angular can
  * locate an existing host element during bootstrap.
  *
- * A noop platform has no DOM and therefore must never attempt to
+ * A opentui platform has no DOM and therefore must never attempt to
  * query for a host element. By replacing the compiled Ivy selector
  * list with `[[]]`, we signal to Angular that the component has no
  * selector. This forces Angular's bootstrap logic to *create* a host
@@ -43,12 +43,12 @@ function stripSelectors(cmp: any) {
 }
 
 /**
- * Identifier for the noop platform. A noop platform provides Angular's
+ * Identifier for the opentui platform. A opentui platform provides Angular's
  * dependency injection and change detection infrastructure without any
  * browser or DOM APIs. It is intended for environments such as Node,
  * CLIs, testing harnesses, or custom renderers where no DOM is present.
  */
-const PLATFORM_NOOP_ID = 'noop';
+const PLATFORM_opentui_ID = 'opentui';
 
 /**
  * Minimal provider set required for Angular to bootstrap in a non‑DOM
@@ -64,7 +64,7 @@ const PLATFORM_NOOP_ID = 'noop';
  *     application bootstrap. Without this, DI throws NG0402.
  *
  *   • RendererFactory2 — Angular requires a renderer even if no DOM is
- *     present. The NoopRendererFactory2 satisfies this contract without
+ *     present. The opentuiRendererFactory2 satisfies this contract without
  *     performing any rendering.
  *
  *   • IMAGE_CONFIG — Angular's image directive expects this token to be
@@ -72,20 +72,20 @@ const PLATFORM_NOOP_ID = 'noop';
  *     that include the directive, even if images are never rendered.
  *
  * All other browser‑specific providers (Document, PlatformLocation,
- * Sanitizer, XHR, ViewportScroller, etc.) are optional in a noop
+ * Sanitizer, XHR, ViewportScroller, etc.) are optional in a opentui
  * environment and can be safely omitted.
  *
  * This list represents the true minimal surface area required for
  * Angular to run without a DOM.
  */
 
-const NOOP_PLATFORM_APPLICATION_STATIC_PROVIDERS: StaticProvider[] = [
+const opentui_PLATFORM_APPLICATION_STATIC_PROVIDERS: StaticProvider[] = [
   /** without this you get "ɵNotFound: NG0201: No provider found for `InjectionToken AppId`." */
   { provide: ɵINJECTOR_SCOPE, useValue: 'root' },
   /** without this you get "RuntimeError: NG0402: A required Injectable was not found in the dependency injection tree." */
   { provide: ErrorHandler, useClass: ErrorHandler, deps: [] },
   /** without this you get "RuntimeError: NG0407: Angular was not able to inject a renderer (RendererFactory2)." */
-  { provide: RendererFactory2, useClass: NoopRendererFactory2, deps: [] },
+  { provide: RendererFactory2, useClass: OpentuiRendererFactory2, deps: [] },
   /** without this you get "ERROR RuntimeError: NG0210: The document object is not available in this context. Make sure the DOCUMENT injection token is provided." */
   {
     provide: IMAGE_CONFIG,
@@ -94,7 +94,7 @@ const NOOP_PLATFORM_APPLICATION_STATIC_PROVIDERS: StaticProvider[] = [
 ];
 
 /**
- * Platform‑level providers for the noop platform.
+ * Platform‑level providers for the opentui platform.
  *
  * In a browser platform, this array would supply low‑level services such
  * as PlatformLocation, LocationStrategy, Sanitizer, and others that the
@@ -102,37 +102,37 @@ const NOOP_PLATFORM_APPLICATION_STATIC_PROVIDERS: StaticProvider[] = [
  * was determined that none of these are required for a minimal, DOM‑less
  * Angular bootstrap.
  *
- * As a result, the noop platform does not install any platform‑level
+ * As a result, the opentui platform does not install any platform‑level
  * providers. Angular's core platform logic (platformCore) is sufficient
  * when combined with the minimal application‑level providers above.
  */
-const INTERNAL_NOOP_PLATFORM_PROVIDERS: StaticProvider[] = [];
+const INTERNAL_opentui_PLATFORM_PROVIDERS: StaticProvider[] = [];
 
 /**
- * Creates a noop Angular platform instance.
+ * Creates a opentui Angular platform instance.
  *
  * This mirrors Angular's `platformBrowser` and `platformServer` entry
  * points, but without installing any browser‑specific platform services.
- * The noop platform relies entirely on Angular's core platform runtime
+ * The opentui platform relies entirely on Angular's core platform runtime
  * (`platformCore`) and the minimal application‑level providers defined
  * above.
  *
  * The result is a fully functional Angular platform that can bootstrap
  * applications without DOM, browser, or zone dependencies.
  */
-export function platformNoop(): PlatformRef {
-  return createPlatformFactory(platformCore, PLATFORM_NOOP_ID, INTERNAL_NOOP_PLATFORM_PROVIDERS)();
+export function platformopentui(): PlatformRef {
+  return createPlatformFactory(platformCore, PLATFORM_opentui_ID, INTERNAL_opentui_PLATFORM_PROVIDERS)();
 }
 
 /**
- * Bootstraps an Angular application using the noop platform.
+ * Bootstraps an Angular application using the opentui platform.
  *
  * This function mirrors Angular's `bootstrapApplication`, but applies
- * noop‑specific behavior:
+ * opentui‑specific behavior:
  *
  *   • Strips selectors from the root component so Angular creates a
  *     host element instead of querying the DOM.
- *   • Installs noop platform and application providers.
+ *   • Installs opentui platform and application providers.
  *   • Uses Angular's internal `ɵinternalCreateApplication` to avoid
  *     browser‑specific bootstrap logic.
  *
@@ -146,8 +146,8 @@ export async function bootstrapApplication(
   stripSelectors(component);
   return ɵinternalCreateApplication({
     rootComponent: component,
-    appProviders: [NOOP_PLATFORM_APPLICATION_STATIC_PROVIDERS, ...applicationConfig.providers],
-    platformProviders: INTERNAL_NOOP_PLATFORM_PROVIDERS,
-    platformRef: platformNoop(),
+    appProviders: [opentui_PLATFORM_APPLICATION_STATIC_PROVIDERS, ...applicationConfig.providers],
+    platformProviders: INTERNAL_opentui_PLATFORM_PROVIDERS,
+    platformRef: platformopentui(),
   });
 }
