@@ -1,12 +1,17 @@
 {
   "name": "ng-platform-opentui",
   "version": "0.0.1",
+  "type": "module",
   "peerDependencies": {
     "@angular/common": "^21.1.0",
-    "@angular/core": "^21.1.0"
+    "@angular/core": "^21.1.0",
+    "@opentui/core": "^0.1.79"
   },
   "dependencies": {
     "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3"
   },
   "sideEffects": false
 }

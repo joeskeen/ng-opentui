@@ -1,6 +1,8 @@
+import '@angular/compiler';
 import { bootstrapApplication } from 'ng-platform-opentui';
 import { App } from './app/app';
 
+console.log('before bootstrap');
 bootstrapApplication(App, {providers: []})
   .then(app => {
     console.log(app, `

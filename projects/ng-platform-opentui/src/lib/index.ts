@@ -11,8 +11,11 @@ import {
   RendererFactory2,
   ErrorHandler,
   ɵINJECTOR_SCOPE,
+  providePlatformInitializer,
 } from '@angular/core';
-import { OpentuiRendererFactory2 } from './opentui-providers';
+import { CLI_RENDERER, OpentuiRendererFactory2 } from './renderer/opentui-renderer';
+import { createCliRenderer } from '@opentui/core';
+import { Logger } from './util/logger';
 
 /**
  * Angular's compiler automatically assigns a default CSS selector
@@ -79,7 +82,7 @@ const PLATFORM_opentui_ID = 'opentui';
  * Angular to run without a DOM.
  */
 
-const opentui_PLATFORM_APPLICATION_STATIC_PROVIDERS: StaticProvider[] = [
+const OPENTUI_PLATFORM_APPLICATION_STATIC_PROVIDERS: StaticProvider[] = [
   /** without this you get "ɵNotFound: NG0201: No provider found for `InjectionToken AppId`." */
   { provide: ɵINJECTOR_SCOPE, useValue: 'root' },
   /** without this you get "RuntimeError: NG0402: A required Injectable was not found in the dependency injection tree." */
@@ -106,7 +109,8 @@ const opentui_PLATFORM_APPLICATION_STATIC_PROVIDERS: StaticProvider[] = [
  * providers. Angular's core platform logic (platformCore) is sufficient
  * when combined with the minimal application‑level providers above.
  */
-const INTERNAL_opentui_PLATFORM_PROVIDERS: StaticProvider[] = [];
+const INTERNAL_OPENTUI_PLATFORM_PROVIDERS: StaticProvider[] = [
+];
 
 /**
  * Creates a opentui Angular platform instance.
@@ -120,8 +124,8 @@ const INTERNAL_opentui_PLATFORM_PROVIDERS: StaticProvider[] = [];
  * The result is a fully functional Angular platform that can bootstrap
  * applications without DOM, browser, or zone dependencies.
  */
-export function platformopentui(): PlatformRef {
-  return createPlatformFactory(platformCore, PLATFORM_opentui_ID, INTERNAL_opentui_PLATFORM_PROVIDERS)();
+export function platformOpentui(): PlatformRef {
+  return createPlatformFactory(platformCore, PLATFORM_opentui_ID, INTERNAL_OPENTUI_PLATFORM_PROVIDERS)();
 }
 
 /**
@@ -143,11 +147,29 @@ export async function bootstrapApplication(
   component: Type<unknown>,
   applicationConfig: ApplicationConfig,
 ): Promise<ApplicationRef> {
+  const logger = new Logger();
+  logger.log('before cli renderer');
+  const cliRenderer = await createCliRenderer();
+  logger.log('after cli renderer');
   stripSelectors(component);
+  logger.log('after strip selectors');
   return ɵinternalCreateApplication({
     rootComponent: component,
-    appProviders: [opentui_PLATFORM_APPLICATION_STATIC_PROVIDERS, ...applicationConfig.providers],
-    platformProviders: INTERNAL_opentui_PLATFORM_PROVIDERS,
-    platformRef: platformopentui(),
+    appProviders: [
+      { provide: Logger, useValue: logger },
+      { provide: CLI_RENDERER, useValue: cliRenderer },
+      OPENTUI_PLATFORM_APPLICATION_STATIC_PROVIDERS, 
+      ...applicationConfig.providers
+    ],
+    platformProviders: INTERNAL_OPENTUI_PLATFORM_PROVIDERS,
+    platformRef: platformOpentui(),
+  }).then((app) => {
+    logger.log(`after internalCreateApplication`, app.viewCount);
+    return app;
+  }).catch(err => {
+    logger.log(`ERROR: ${err}`)
+    throw err;
+  }).finally(() => {
+    logger.log(`finally`);
   });
 }

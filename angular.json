@@ -23,12 +23,6 @@
             }
           },
           "defaultConfiguration": "production"
-        },
-        "test": {
-          "builder": "@angular/build:unit-test",
-          "options": {
-            "tsConfig": "projects/ng-platform-opentui/tsconfig.spec.json"
-          }
         }
       }
     },
@@ -40,14 +34,27 @@
       "prefix": "app",
       "architect": {
         "build": {
-          "builder": "@angular/build:application",
+          "builder": "@angular-devkit/build-angular:server",
           "options": {
             "tsConfig": "projects/sample-opentui-app/tsconfig.app.json",
-            "index": "projects/sample-opentui-app/src/main.ts"
+            "main": "projects/sample-opentui-app/src/main.ts",
+            "outputPath": "dist/sample-opentui-app/browser/",
+            
+            "externalDependencies": [
+              "path",
+              "url",
+              "fs",
+              "os",
+              "fs/promises",
+              "bun:ffi",
+              "util",
+              "console",
+              "stream",
+              "env"
+            ]
           },
           "configurations": {
-            "production": {
-            },
+            "production": {},
             "development": {
               "optimization": false,
               "extractLicenses": false,
