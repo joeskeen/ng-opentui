@@ -27,7 +27,7 @@ import {
   TextNodeRenderable,
   RootTextNodeRenderable,
 } from '@opentui/core';
-import { Logger } from '../util/logger';
+import { Logger } from './logger';
 import {
   BoldSpanRenderable,
   ItalicSpanRenderable,
@@ -37,7 +37,21 @@ import {
   UnderlineSpanRenderable,
 } from './text-renderables';
 import { randomUUID } from 'crypto';
-import { inspect } from 'util';
+
+export interface CommentNode {
+  __comment: true;
+  id: string;
+  parent?: Renderable;
+}
+export function isComment(node: Renderable | CommentNode | null): node is CommentNode {
+  if (!node) {
+    return false;
+  }
+  if ('__comment' in node) {
+    return true;
+  }
+  return false;
+}
 
 const ELEMENT_MAP: Record<string, Type<BaseRenderable>> = {
   text: TextRenderable,
@@ -102,9 +116,13 @@ class OpentuiRenderer2 implements Renderer2 {
   // -----------------------------
   // ELEMENT CREATION
   // -----------------------------
-  createComment(...args: any[]) {
-    this.logger.log(this.createComment.name, { args });
-    return null;
+  createComment(name: string) {
+    this.logger.log(this.createComment.name, { name });
+    const comment: CommentNode = {
+      __comment: true,
+      id: `comment-${name}-${randomUUID()}`,
+    };
+    return comment;
   }
 
   createElement(name: string): Renderable {
@@ -129,8 +147,13 @@ class OpentuiRenderer2 implements Renderer2 {
   // -----------------------------
   // TREE OPERATIONS
   // -----------------------------
-  appendChild(parent: Renderable, child: Renderable) {
+  appendChild(parent: Renderable, child: Renderable | CommentNode) {
     this.logger.log(this.appendChild.name, { parent, child });
+
+    if (isComment(child)) {
+      child.parent = parent;
+      return;
+    }
 
     // First child becomes root
 
@@ -179,9 +202,21 @@ class OpentuiRenderer2 implements Renderer2 {
     parent.add(child);
   }
 
-  insertBefore(parent: Renderable, child: Renderable, before: Renderable) {
+  insertBefore(parent: Renderable, child: Renderable, before: Renderable | CommentNode) {
     this.logger.log(this.insertBefore.name, { parent, child, before });
-    // OpenTUI doesn't support insertBefore directly — we’ll emulate later
+    if (isComment(before)) {
+      // Insert before the anchor’s position
+      const idx = parent.getChildren().indexOf(before as any);
+      if (idx === -1) {
+        parent.add(child);
+      } else {
+        parent.getChildren().splice(idx, 0, child);
+        child.parent = parent;
+      }
+      return;
+    }
+
+    // fallback
     parent.add(child);
   }
 
@@ -195,14 +230,20 @@ class OpentuiRenderer2 implements Renderer2 {
     return this.cli.root; // keep this
   }
 
-  parentNode(node: Renderable) {
+  parentNode(node: Renderable | CommentNode) {
     this.logger.log(this.parentNode.name, { node });
     return node.parent ?? null;
   }
 
-  nextSibling(node: Renderable) {
-    this.logger.log(this.nextSibling.name, { node });
-    return null; // OpenTUI doesn't expose sibling traversal yet
+  nextSibling(node: Renderable | CommentNode) {
+    if (isComment(node)) {
+      const parent = node.parent;
+      if (!parent) return null;
+      const children = parent.getChildren();
+      const idx = children.indexOf(node as any);
+      return children[idx + 1] ?? null;
+    }
+    return null;
   }
 
   // -----------------------------

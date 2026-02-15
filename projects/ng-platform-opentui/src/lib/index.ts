@@ -1,4 +1,4 @@
-import { IMAGE_CONFIG, ImageConfig } from '@angular/common';
+import { IMAGE_CONFIG, ImageConfig, LocationStrategy, PlatformLocation } from '@angular/common';
 import {
   ApplicationConfig,
   ApplicationRef,
@@ -12,9 +12,13 @@ import {
   ErrorHandler,
   ɵINJECTOR_SCOPE,
 } from '@angular/core';
-import { CLI_RENDERER, OpentuiRendererFactory2 } from './renderer/opentui-renderer';
+import { CLI_RENDERER, OpentuiRendererFactory2 } from './opentui-renderer';
 import { createCliRenderer } from '@opentui/core';
-import { Logger } from './util/logger';
+import { Logger } from './logger';
+import { LoggingErrorHandler } from './error-handler';
+import { TuiLocationStrategy, TuiPlatformLocation } from './location';
+import { TitleStrategy } from '@angular/router';
+import { TuiTitleStrategy } from './title-strategy';
 
 /**
  * Angular's compiler automatically assigns a default CSS selector
@@ -32,7 +36,7 @@ import { Logger } from './util/logger';
  *
  * This mutation must occur before Angular reads the component's Ivy
  * definition during bootstrap.
- * 
+ *
  * This function will only ever need to be called on the root, since
  * any child components would be created, not expected to already exist.
  *
@@ -51,6 +55,7 @@ function stripSelectors(cmp: any) {
  * CLIs, testing harnesses, or custom renderers where no DOM is present.
  */
 const PLATFORM_opentui_ID = 'opentui';
+const logger = new Logger();
 
 /**
  * Minimal provider set required for Angular to bootstrap in a non‑DOM
@@ -84,8 +89,9 @@ const PLATFORM_opentui_ID = 'opentui';
 const OPENTUI_PLATFORM_APPLICATION_STATIC_PROVIDERS: StaticProvider[] = [
   /** without this you get "ɵNotFound: NG0201: No provider found for `InjectionToken AppId`." */
   { provide: ɵINJECTOR_SCOPE, useValue: 'root' },
+  { provide: Logger, useValue: logger },
   /** without this you get "RuntimeError: NG0402: A required Injectable was not found in the dependency injection tree." */
-  { provide: ErrorHandler, useClass: ErrorHandler, deps: [] },
+  { provide: ErrorHandler, useClass: LoggingErrorHandler, deps: [] },
   /** without this you get "RuntimeError: NG0407: Angular was not able to inject a renderer (RendererFactory2)." */
   { provide: RendererFactory2, useClass: OpentuiRendererFactory2, deps: [] },
   /** without this you get "ERROR RuntimeError: NG0210: The document object is not available in this context. Make sure the DOCUMENT injection token is provided." */
@@ -109,6 +115,7 @@ const OPENTUI_PLATFORM_APPLICATION_STATIC_PROVIDERS: StaticProvider[] = [
  * when combined with the minimal application‑level providers above.
  */
 const INTERNAL_OPENTUI_PLATFORM_PROVIDERS: StaticProvider[] = [
+  { provide: Logger, useValue: logger },
 ];
 
 /**
@@ -124,7 +131,9 @@ const INTERNAL_OPENTUI_PLATFORM_PROVIDERS: StaticProvider[] = [
  * applications without DOM, browser, or zone dependencies.
  */
 export function platformOpentui(): PlatformRef {
-  return createPlatformFactory(platformCore, PLATFORM_opentui_ID, INTERNAL_OPENTUI_PLATFORM_PROVIDERS)();
+  return createPlatformFactory(platformCore, PLATFORM_opentui_ID, [
+    ...INTERNAL_OPENTUI_PLATFORM_PROVIDERS,
+  ])();
 }
 
 /**
@@ -146,21 +155,24 @@ export async function bootstrapApplication(
   component: Type<unknown>,
   applicationConfig: ApplicationConfig,
 ): Promise<ApplicationRef> {
-  const logger = new Logger();
   const cliRenderer = await createCliRenderer({
     exitOnCtrlC: true,
-    onDestroy: () => process.exit(0)
+    onDestroy: () => process.exit(0),
   });
   stripSelectors(component);
   return ɵinternalCreateApplication({
     rootComponent: component,
     appProviders: [
-      { provide: Logger, useValue: logger },
+      ...OPENTUI_PLATFORM_APPLICATION_STATIC_PROVIDERS,
       { provide: CLI_RENDERER, useValue: cliRenderer },
-      OPENTUI_PLATFORM_APPLICATION_STATIC_PROVIDERS, 
-      ...applicationConfig.providers
+      { provide: LocationStrategy, useClass: TuiLocationStrategy },
+      { provide: PlatformLocation, useClass: TuiPlatformLocation },
+      { provide: TitleStrategy, useClass: TuiTitleStrategy },
+      ...applicationConfig.providers,
     ],
-    platformProviders: INTERNAL_OPENTUI_PLATFORM_PROVIDERS,
+    platformProviders: [
+      ...INTERNAL_OPENTUI_PLATFORM_PROVIDERS,
+    ],
     platformRef: platformOpentui(),
   });
 }

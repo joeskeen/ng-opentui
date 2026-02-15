@@ -3,4 +3,4 @@
  */
 
 export * from './lib/index';
-export * from './lib/util/logger';
+export * from './lib/logger';
