@@ -11,7 +11,6 @@ import {
   RendererFactory2,
   ErrorHandler,
   ɵINJECTOR_SCOPE,
-  providePlatformInitializer,
 } from '@angular/core';
 import { CLI_RENDERER, OpentuiRendererFactory2 } from './renderer/opentui-renderer';
 import { createCliRenderer } from '@opentui/core';
@@ -148,11 +147,11 @@ export async function bootstrapApplication(
   applicationConfig: ApplicationConfig,
 ): Promise<ApplicationRef> {
   const logger = new Logger();
-  logger.log('before cli renderer');
-  const cliRenderer = await createCliRenderer();
-  logger.log('after cli renderer');
+  const cliRenderer = await createCliRenderer({
+    exitOnCtrlC: true,
+    onDestroy: () => process.exit(0)
+  });
   stripSelectors(component);
-  logger.log('after strip selectors');
   return ɵinternalCreateApplication({
     rootComponent: component,
     appProviders: [
@@ -163,13 +162,5 @@ export async function bootstrapApplication(
     ],
     platformProviders: INTERNAL_OPENTUI_PLATFORM_PROVIDERS,
     platformRef: platformOpentui(),
-  }).then((app) => {
-    logger.log(`after internalCreateApplication`, app.viewCount);
-    return app;
-  }).catch(err => {
-    logger.log(`ERROR: ${err}`)
-    throw err;
-  }).finally(() => {
-    logger.log(`finally`);
   });
 }

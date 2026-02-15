@@ -6,26 +6,68 @@ import {
   Injectable,
   inject,
   InjectionToken,
+  Type,
 } from '@angular/core';
 
 import {
-  createCliRenderer,
   type CliRenderer,
   type Renderable,
   TextRenderable,
   BoxRenderable,
+  CodeRenderable,
+  DiffRenderable,
+  InputRenderable,
+  LineNumberRenderable,
+  MarkdownRenderable,
+  ScrollBoxRenderable,
+  SelectRenderable,
+  TabSelectRenderable,
+  TextareaRenderable,
+  BaseRenderable,
+  TextNodeRenderable,
+  RootTextNodeRenderable,
 } from '@opentui/core';
 import { Logger } from '../util/logger';
+import {
+  BoldSpanRenderable,
+  ItalicSpanRenderable,
+  LineBreakRenderable,
+  LinkRenderable,
+  SpanRenderable,
+  UnderlineSpanRenderable,
+} from './text-renderables';
+import { randomUUID } from 'crypto';
+import { inspect } from 'util';
 
-// Temporary mapping — we’ll expand this later
-const ELEMENT_MAP: Record<string, any> = {
-  div: BoxRenderable,
-  span: BoxRenderable,
-  text: TextRenderable, // only if you ever use a <text> tag explicitly
+const ELEMENT_MAP: Record<string, Type<BaseRenderable>> = {
+  text: TextRenderable,
   box: BoxRenderable,
+  scrollbox: ScrollBoxRenderable,
+  input: InputRenderable,
+  textarea: TextareaRenderable,
+  select: SelectRenderable,
+  'tab-select': TabSelectRenderable,
+  code: CodeRenderable,
+  'line-number': LineNumberRenderable,
+  diff: DiffRenderable,
+  markdown: MarkdownRenderable,
+
+  // inline text
+  span: SpanRenderable,
+  b: BoldSpanRenderable,
+  strong: BoldSpanRenderable,
+  i: ItalicSpanRenderable,
+  em: ItalicSpanRenderable,
+  u: UnderlineSpanRenderable,
+  br: LineBreakRenderable,
+  a: LinkRenderable,
 };
 
 export const CLI_RENDERER = new InjectionToken<CliRenderer>('ClI Renderer');
+
+export type UnprotectedTextRenderable = TextNodeRenderable & {
+  rootTextNode: RootTextNodeRenderable;
+};
 
 @Injectable({ providedIn: 'root' })
 export class OpentuiRendererFactory2 implements RendererFactory2 {
@@ -60,28 +102,24 @@ class OpentuiRenderer2 implements Renderer2 {
   // -----------------------------
   // ELEMENT CREATION
   // -----------------------------
-  createElement(name: string): Renderable {
-    this.logger.log(this.createElement.name, { name });
-
-    const ctor = ELEMENT_MAP[name] ?? BoxRenderable; // default to container
-
-    return new ctor(this.cli, {
-      id: `${name}-${Math.random().toString(36).slice(2)}`,
-      content: '',
-    });
-  }
-
   createComment(...args: any[]) {
     this.logger.log(this.createComment.name, { args });
     return null;
   }
 
-  createText(value: string): Renderable {
+  createElement(name: string): Renderable {
+    this.logger.log(this.createElement.name, { name });
+    const ctor = ELEMENT_MAP[name] ?? BoxRenderable;
+    return new ctor(this.cli, {
+      id: `${name}-${randomUUID()}`,
+    }) as Renderable;
+  }
+
+  createText(value: string) {
     this.logger.log(this.createText.name, { value });
-    return new TextRenderable(this.cli, {
-      id: `text-${Math.random().toString(36).slice(2)}`,
-      content: (value ?? '').toString(),
-    });
+    const node = new SpanRenderable();
+    node.add(value ?? '');
+    return node;
   }
 
   destroyNode(...args: any[]) {
@@ -91,14 +129,54 @@ class OpentuiRenderer2 implements Renderer2 {
   // -----------------------------
   // TREE OPERATIONS
   // -----------------------------
-  appendChild(parent: Renderable | null, child: Renderable) {
+  appendChild(parent: Renderable, child: Renderable) {
     this.logger.log(this.appendChild.name, { parent, child });
+
+    // First child becomes root
+
+    // First time we see a parent, make *that* the root container
     if (!this.hasRoot) {
       this.hasRoot = true;
-      this.cli.root.add(child);
+      this.cli.root.add(parent); // attach the <div> once
+    }
+
+    // From here on, always treat appendChild normally
+    // Inline text inside <text>
+    if (parent instanceof TextRenderable && child instanceof TextNodeRenderable) {
+      (parent as unknown as UnprotectedTextRenderable).rootTextNode.add(child);
       return;
     }
-    parent?.add(child);
+
+    // Inline text inside inline text
+    if (parent instanceof TextNodeRenderable && child instanceof TextNodeRenderable) {
+      parent.add(child);
+      return;
+    }
+
+    // Inline text inside a block element → wrap it
+    const parentIsBlock =
+      parent instanceof TextRenderable ||
+      parent instanceof BoxRenderable ||
+      parent instanceof ScrollBoxRenderable ||
+      parent instanceof SelectRenderable ||
+      parent instanceof InputRenderable ||
+      parent instanceof TextareaRenderable ||
+      parent instanceof MarkdownRenderable ||
+      parent instanceof CodeRenderable ||
+      parent instanceof DiffRenderable;
+
+    if (child instanceof TextNodeRenderable && parentIsBlock) {
+      const wrapper = new TextRenderable(this.cli, {
+        id: `text-${randomUUID()}`,
+        content: '',
+      });
+      (wrapper as unknown as UnprotectedTextRenderable).rootTextNode.add(child);
+      parent.add(wrapper as any);
+      return;
+    }
+
+    // otherwise, normal append
+    parent.add(child);
   }
 
   insertBefore(parent: Renderable, child: Renderable, before: Renderable) {
@@ -165,7 +243,18 @@ class OpentuiRenderer2 implements Renderer2 {
   setValue(el: Renderable, value: string) {
     this.logger.log(this.setValue.name, { el, value });
     if (el instanceof TextRenderable) {
-      el.content = (value ?? '').toString();
+      el.content = value;
+      return;
+    }
+
+    if (el instanceof TextNodeRenderable) {
+      if (el.children.length === 0) {
+        el.add(value ?? '');
+      } else {
+        el.replace(value ?? '', 0);
+      }
+
+      return;
     }
   }
 
