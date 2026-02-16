@@ -5,13 +5,10 @@ import { RouterLink } from '@angular/router';
 
 @Component({
   template: `
-    <span>Examples</span>
-    <span>{{ examples().length }}</span>
-    <span>Before</span>
+    <span>NG-OPENTUI EXAMPLES</span>
     @for (example of examples(); track example.id) {
       <a [routerLink]="'/examples/' + example.id" fg="#0000FF">{{ example.title }}</a>
     }
-    <span>After</span>
   `,
   imports: [RouterLink],
 })
