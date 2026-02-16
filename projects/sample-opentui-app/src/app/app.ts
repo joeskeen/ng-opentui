@@ -1,9 +1,17 @@
-import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, inject } from '@angular/core';
+import { Router, RouterOutlet } from '@angular/router';
+import { Logger, MouseEventsService } from 'ng-platform-opentui';
 
 @Component({
   template: `<router-outlet></router-outlet>`,
   imports: [RouterOutlet],
 })
 export class App {
+  readonly logger = inject(Logger);
+  readonly mouseEvents = inject(MouseEventsService);
+  readonly router = inject(Router);
+  constructor() {
+    this.mouseEvents.allMouseEvent$.subscribe((e) => this.logger.log(App.name, 'mouse event', e));
+    this.router.events.subscribe(e => this.logger.log(App.name, 'navigation event', e));
+  }
 }

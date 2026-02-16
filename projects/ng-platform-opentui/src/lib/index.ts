@@ -20,6 +20,7 @@ import { TuiLocationStrategy, TuiPlatformLocation } from './routing/location';
 import { TitleStrategy } from '@angular/router';
 import { TuiTitleStrategy } from './routing/title-strategy';
 import { OpentuiRendererFactory2 } from './renderer/opentui-renderer.factory';
+import { MouseEventsService } from './events/mouse-events.service';
 
 /**
  * Angular's compiler automatically assigns a default CSS selector
@@ -171,6 +172,7 @@ export async function bootstrapApplication(
       { provide: LocationStrategy, useClass: TuiLocationStrategy },
       { provide: PlatformLocation, useClass: TuiPlatformLocation },
       { provide: TitleStrategy, useClass: TuiTitleStrategy },
+      MouseEventsService,
       ...applicationConfig.providers,
     ],
     platformProviders: [

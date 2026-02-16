@@ -84,9 +84,10 @@ export function dumpRenderableTree(
   // Try to get children from OpenTUI’s API
   let children: any[] = [];
   try {
-    if (typeof node.getChildren === 'function') {
-      children = node.getChildren() ?? [];
-    }
+    children = [
+      ...node.getChildren?.(),
+      ...node.rootTextNode?.getChildren?.()
+    ];
   } catch {}
 
   // Fallback: inspect internal arrays if needed

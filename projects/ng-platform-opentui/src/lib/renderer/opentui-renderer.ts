@@ -1,8 +1,4 @@
-import {
-  Renderer2,
-  InjectionToken,
-  Type,
-} from '@angular/core';
+import { Renderer2, InjectionToken, Type } from '@angular/core';
 
 import {
   type CliRenderer,
@@ -33,6 +29,7 @@ import {
 } from './text-renderables';
 import { randomUUID } from 'crypto';
 import { isLayoutRenderable } from './helpers';
+import { forwardEvents } from '../events/forward-events';
 
 const ELEMENT_MAP: Record<string, Type<BaseRenderable>> = {
   text: TextRenderable,
@@ -307,33 +304,38 @@ export class OpentuiRenderer2 implements Renderer2 {
   // -----------------------------
   // EVENTS
   // -----------------------------
-  listen(el: any, event: string, callback: (...args: any[]) => void): () => void {
-    this.logger.log('listen', { el, event });
+  
+  readonly EVENT_MAP: Record<string, string> = {
+    click: 'onMouseUp',
+    mousedown: 'onMouseDown',
+    mouseup: 'onMouseUp',
+    mouseover: 'onMouseOver',
+    mouseout: 'onMouseOut',
+    mousemove: 'onMouseMove',
+    drag: 'onMouseDrag',
+    drop: 'onMouseDrop',
+  };
+  listen(el: Renderable, event: string, callback: Function) {
+    const prop = this.EVENT_MAP[event];
+    this.logger.log(this.listen.name, {el, event, callback, prop});
+    if (!prop) return () => {};
 
-    // Map Angular DOM events → OpenTUI events
-    const map: Record<string, string> = {
-      click: 'activate',
-      keydown: 'onKey',
-      keyup: 'onKey',
-      input: 'onInput',
-      change: 'onChange',
-      focus: 'onFocus',
-      blur: 'onBlur',
+    // Save previous handler so we can restore it
+    const previous = (el as any)[prop];
+
+    (el as any)[prop] = (e: Event) => {
+      if (e.defaultPrevented) {
+        return;
+      }
+
+      callback(e);
+      previous?.(e);
     };
 
-    const tuiEvent = map[event] ?? event;
-
-    const wrapped = (...args: any[]) => {
-      this.logger.log('EVENT FIRED', { el, event, args });
-      return callback(...args);
+    return () => {
+      // Restore previous handler on teardown
+      (el as any)[prop] = previous;
     };
-
-    if (el && typeof el.on === 'function') {
-      const off = el.on(tuiEvent, wrapped);
-      return () => off?.();
-    }
-
-    return () => {};
   }
 
   private getChildren(parent: Renderable) {
@@ -393,8 +395,9 @@ export class OpentuiRenderer2 implements Renderer2 {
       });
 
       // Move the inline node into the wrapper
-      (wrapper as any).rootTextNode.add(child);
-
+      (wrapper as unknown as UnprotectedTextRenderable).rootTextNode.add(child);
+      // forward all events on the wrapper to the child
+      forwardEvents(wrapper, child);
       // Track the wrapper so future children go into it
       (child as any).__wrappedBy = wrapper;
 

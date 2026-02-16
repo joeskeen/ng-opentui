@@ -1,5 +1,5 @@
 import { ErrorHandler, inject, Injectable } from "@angular/core";
-import { Logger } from "./common/logger";
+import { Logger } from "./logger";
 
 @Injectable({providedIn: 'root'})
 export class LoggingErrorHandler implements ErrorHandler {
