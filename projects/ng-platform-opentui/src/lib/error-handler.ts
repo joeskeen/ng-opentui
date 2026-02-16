@@ -5,7 +5,7 @@ import { Logger } from "./logger";
 export class LoggingErrorHandler implements ErrorHandler {
     readonly logger = inject(Logger);
     handleError(error: any): void {
-        this.logger.log(`[ERROR] ${error}`);
+        this.logger.log(`[ERROR] ${error}\n\t${(error as Error).stack}`);
     }
 
 }

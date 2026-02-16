@@ -55,7 +55,6 @@ function stripSelectors(cmp: any) {
  * CLIs, testing harnesses, or custom renderers where no DOM is present.
  */
 const PLATFORM_opentui_ID = 'opentui';
-const logger = new Logger();
 
 /**
  * Minimal provider set required for Angular to bootstrap in a non‑DOM
@@ -89,7 +88,7 @@ const logger = new Logger();
 const OPENTUI_PLATFORM_APPLICATION_STATIC_PROVIDERS: StaticProvider[] = [
   /** without this you get "ɵNotFound: NG0201: No provider found for `InjectionToken AppId`." */
   { provide: ɵINJECTOR_SCOPE, useValue: 'root' },
-  { provide: Logger, useValue: logger },
+  { provide: Logger, useValue: Logger.instance },
   /** without this you get "RuntimeError: NG0402: A required Injectable was not found in the dependency injection tree." */
   { provide: ErrorHandler, useClass: LoggingErrorHandler, deps: [] },
   /** without this you get "RuntimeError: NG0407: Angular was not able to inject a renderer (RendererFactory2)." */
@@ -115,7 +114,7 @@ const OPENTUI_PLATFORM_APPLICATION_STATIC_PROVIDERS: StaticProvider[] = [
  * when combined with the minimal application‑level providers above.
  */
 const INTERNAL_OPENTUI_PLATFORM_PROVIDERS: StaticProvider[] = [
-  { provide: Logger, useValue: logger },
+  { provide: Logger, useValue: Logger.instance },
 ];
 
 /**

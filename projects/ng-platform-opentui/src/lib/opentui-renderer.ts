@@ -1,4 +1,3 @@
-// import "@opentui/core-linux-x64";
 import {
   RendererFactory2,
   Renderer2,
@@ -27,7 +26,7 @@ import {
   TextNodeRenderable,
   RootTextNodeRenderable,
 } from '@opentui/core';
-import { Logger } from './logger';
+import { dumpRenderableTree, Logger } from './logger';
 import {
   BoldSpanRenderable,
   ItalicSpanRenderable,
@@ -37,21 +36,7 @@ import {
   UnderlineSpanRenderable,
 } from './text-renderables';
 import { randomUUID } from 'crypto';
-
-export interface CommentNode {
-  __comment: true;
-  id: string;
-  parent?: Renderable;
-}
-export function isComment(node: Renderable | CommentNode | null): node is CommentNode {
-  if (!node) {
-    return false;
-  }
-  if ('__comment' in node) {
-    return true;
-  }
-  return false;
-}
+import { isBlockContainer, isInlineTextNode, isLayoutRenderable } from './helpers';
 
 const ELEMENT_MAP: Record<string, Type<BaseRenderable>> = {
   text: TextRenderable,
@@ -77,6 +62,14 @@ const ELEMENT_MAP: Record<string, Type<BaseRenderable>> = {
   a: LinkRenderable,
 };
 
+export class CommentNode {
+  readonly id = `comment-${randomUUID()}`;
+  parent: any = null;
+  constructor(readonly data: string) {
+    Logger.instance.log(CommentNode.name, { id: this.id, parent: this.parent, data });
+  }
+}
+
 export const CLI_RENDERER = new InjectionToken<CliRenderer>('ClI Renderer');
 
 export type UnprotectedTextRenderable = TextNodeRenderable & {
@@ -101,6 +94,7 @@ export class OpentuiRendererFactory2 implements RendererFactory2 {
 
 class OpentuiRenderer2 implements Renderer2 {
   hasRoot = false;
+  children = new WeakMap<Renderable, any[]>();
 
   constructor(
     private cli: CliRenderer,
@@ -116,13 +110,9 @@ class OpentuiRenderer2 implements Renderer2 {
   // -----------------------------
   // ELEMENT CREATION
   // -----------------------------
-  createComment(name: string) {
-    this.logger.log(this.createComment.name, { name });
-    const comment: CommentNode = {
-      __comment: true,
-      id: `comment-${name}-${randomUUID()}`,
-    };
-    return comment;
+  createComment(data: string) {
+    this.logger.log(this.createComment.name, { data });
+    return new CommentNode(data);
   }
 
   createElement(name: string): Renderable {
@@ -135,8 +125,12 @@ class OpentuiRenderer2 implements Renderer2 {
 
   createText(value: string) {
     this.logger.log(this.createText.name, { value });
-    const node = new SpanRenderable();
-    node.add(value ?? '');
+
+    const node = new TextNodeRenderable({});
+    if (value != null && value !== '') {
+      node.add(String(value));
+    }
+
     return node;
   }
 
@@ -147,82 +141,116 @@ class OpentuiRenderer2 implements Renderer2 {
   // -----------------------------
   // TREE OPERATIONS
   // -----------------------------
-  appendChild(parent: Renderable, child: Renderable | CommentNode) {
+  appendChild(parent: Renderable, child: Renderable) {
     this.logger.log(this.appendChild.name, { parent, child });
+    if (!child) return;
 
-    if (isComment(child)) {
+    const list = this.getChildren(parent);
+    list.push(child);
+
+    // Comments: only logical, no layout
+    if (child instanceof CommentNode) {
       child.parent = parent;
       return;
     }
 
-    // First child becomes root
-
-    // First time we see a parent, make *that* the root container
-    if (!this.hasRoot) {
-      this.hasRoot = true;
-      this.cli.root.add(parent); // attach the <div> once
-    }
-
-    // From here on, always treat appendChild normally
-    // Inline text inside <text>
-    if (parent instanceof TextRenderable && child instanceof TextNodeRenderable) {
-      (parent as unknown as UnprotectedTextRenderable).rootTextNode.add(child);
-      return;
-    }
-
-    // Inline text inside inline text
-    if (parent instanceof TextNodeRenderable && child instanceof TextNodeRenderable) {
+    // Text containers: delegate to their own add()
+    if (parent instanceof TextNodeRenderable) {
       parent.add(child);
+      child.parent = parent;
       return;
     }
 
-    // Inline text inside a block element → wrap it
-    const parentIsBlock =
-      parent instanceof TextRenderable ||
-      parent instanceof BoxRenderable ||
-      parent instanceof ScrollBoxRenderable ||
-      parent instanceof SelectRenderable ||
-      parent instanceof InputRenderable ||
-      parent instanceof TextareaRenderable ||
-      parent instanceof MarkdownRenderable ||
-      parent instanceof CodeRenderable ||
-      parent instanceof DiffRenderable;
-
-    if (child instanceof TextNodeRenderable && parentIsBlock) {
-      const wrapper = new TextRenderable(this.cli, {
-        id: `text-${randomUUID()}`,
-        content: '',
-      });
-      (wrapper as unknown as UnprotectedTextRenderable).rootTextNode.add(child);
-      parent.add(wrapper as any);
-      return;
+    const wrapped = this.wrapInlineIfNeeded(parent, child);
+    // DOM semantics: appendChild moves existing nodes
+    if (wrapped.parent && wrapped.parent !== parent) {
+      wrapped.parent.remove(wrapped.id);
     }
 
-    // otherwise, normal append
-    parent.add(child);
+    parent.add(wrapped);
+    wrapped.parent = parent;
+
+    // Attach first layout root to cli.root
+    if (!this.hasRoot && parent !== this.cli.root) {
+      this.cli.root.add(parent);
+      this.hasRoot = true;
+    }
   }
 
-  insertBefore(parent: Renderable, child: Renderable, before: Renderable | CommentNode) {
+  insertBefore(parent: Renderable, child: any, before: any | null) {
     this.logger.log(this.insertBefore.name, { parent, child, before });
-    if (isComment(before)) {
-      // Insert before the anchor’s position
-      const idx = parent.getChildren().indexOf(before as any);
-      if (idx === -1) {
-        parent.add(child);
-      } else {
-        parent.getChildren().splice(idx, 0, child);
-        child.parent = parent;
-      }
+    dumpRenderableTree(this.cli.root);
+
+    if (!child) return;
+
+    const list = this.getChildren(parent);
+    const index = list.indexOf(before);
+
+    // If anchor not found, just append
+    if (index === -1) {
+      dumpRenderableTree(this.cli.root);
+      return this.appendChild(parent, child);
+    }
+
+    // Insert into logical list
+    list.splice(index, 0, child);
+
+    // Comments: logical only
+    if (child instanceof CommentNode) {
+      child.parent = parent;
       return;
     }
 
-    // fallback
-    parent.add(child);
+    // Text containers: no positional insert, just append
+    if (parent instanceof TextNodeRenderable) {
+      parent.add(child);
+      child.parent = parent;
+      dumpRenderableTree(this.cli.root);
+      return;
+    }
+
+    const wrapped = this.wrapInlineIfNeeded(parent, child);
+    if (wrapped.parent && wrapped.parent !== parent) {
+      wrapped.parent.remove(wrapped.id);
+    }
+
+    // Find the next layout sibling after this logical index
+    const layoutSibling = this.findLayoutSibling(parent, index + 1);
+
+    if (layoutSibling && typeof (parent as any).insertBefore === 'function') {
+      (parent as any).insertBefore(wrapped, layoutSibling);
+    } else {
+      parent.add(wrapped);
+    }
+
+    wrapped.parent = parent;
+
+    // Same root-attach invariant as appendChild
+    if (!this.hasRoot && parent !== this.cli.root) {
+      this.cli.root.add(parent);
+      this.hasRoot = true;
+    }
+    dumpRenderableTree(this.cli.root);
   }
 
-  removeChild(parent: Renderable, child: Renderable) {
+  removeChild(parent: Renderable, child: any) {
     this.logger.log(this.removeChild.name, { parent, child });
-    parent.remove(child.id);
+
+    const list = this.getChildren(parent);
+    const idx = list.indexOf(child);
+    if (idx !== -1) {
+      list.splice(idx, 1);
+    }
+
+    // Comments: nothing to remove from layout
+    if (child instanceof CommentNode) {
+      return;
+    }
+
+    // Layout nodes: remove by id if possible
+    if (child && typeof (parent as any).remove === 'function' && (child as any).id) {
+      (parent as any).remove((child as any).id);
+    }
   }
 
   selectRootElement(selector: string) {
@@ -230,19 +258,12 @@ class OpentuiRenderer2 implements Renderer2 {
     return this.cli.root; // keep this
   }
 
-  parentNode(node: Renderable | CommentNode) {
+  parentNode(node: Renderable) {
     this.logger.log(this.parentNode.name, { node });
-    return node.parent ?? null;
+    return node?.parent ?? null;
   }
 
-  nextSibling(node: Renderable | CommentNode) {
-    if (isComment(node)) {
-      const parent = node.parent;
-      if (!parent) return null;
-      const children = parent.getChildren();
-      const idx = children.indexOf(node as any);
-      return children[idx + 1] ?? null;
-    }
+  nextSibling(node: Renderable) {
     return null;
   }
 
@@ -281,20 +302,24 @@ class OpentuiRenderer2 implements Renderer2 {
     (el as any)[name] = value;
   }
 
-  setValue(el: Renderable, value: string) {
+  setValue(el: any, value: string | null | undefined) {
     this.logger.log(this.setValue.name, { el, value });
-    if (el instanceof TextRenderable) {
-      el.content = value;
+
+    if (el instanceof TextNodeRenderable) {
+      // Clear and replace content
+      (el as any).clear?.();
+      if (value != null && value !== '') {
+        el.add(String(value));
+      }
       return;
     }
 
-    if (el instanceof TextNodeRenderable) {
-      if (el.children.length === 0) {
-        el.add(value ?? '');
-      } else {
-        el.replace(value ?? '', 0);
+    // Fallback: if you ever use SpanRenderable as text container directly
+    if (el instanceof SpanRenderable) {
+      (el as any).clear?.();
+      if (value != null && value !== '') {
+        el.add(String(value));
       }
-
       return;
     }
   }
@@ -306,5 +331,73 @@ class OpentuiRenderer2 implements Renderer2 {
     this.logger.log(this.listen.name, { el, event, callback });
     // TODO: map Angular events → OpenTUI events
     return () => {};
+  }
+
+  private getChildren(parent: Renderable) {
+    if (!this.children.has(parent)) {
+      this.children.set(parent, []);
+    }
+    return this.children.get(parent)!;
+  }
+
+  private getLayoutFor(node: any): Renderable | null {
+    if (!node) return null;
+
+    // Direct layout node
+    if (isLayoutRenderable(node)) {
+      return node as Renderable;
+    }
+
+    // Inline nodes that were wrapped (TextNodeRenderable, etc.)
+    const wrapped = (node as any).__wrappedBy;
+    if (wrapped && isLayoutRenderable(wrapped)) {
+      return wrapped as Renderable;
+    }
+
+    return null;
+  }
+
+  private findLayoutSibling(parent: Renderable, startIndex: number): Renderable | null {
+    const list = this.getChildren(parent);
+
+    for (let i = startIndex; i < list.length; i++) {
+      const layout = this.getLayoutFor(list[i]);
+      if (layout) {
+        return layout;
+      }
+    }
+
+    return null;
+  }
+
+  private wrapInlineIfNeeded(parent: Renderable, child: Renderable): Renderable {
+    const isInline = child instanceof TextNodeRenderable;
+    const parentIsBlock =
+      parent instanceof TextRenderable ||
+      parent instanceof BoxRenderable ||
+      parent instanceof ScrollBoxRenderable ||
+      parent instanceof SelectRenderable ||
+      parent instanceof InputRenderable ||
+      parent instanceof TextareaRenderable ||
+      parent instanceof MarkdownRenderable ||
+      parent instanceof CodeRenderable ||
+      parent instanceof DiffRenderable;
+
+    if (isInline && parentIsBlock) {
+      const wrapper = new TextRenderable(this.cli, {
+        id: `text-${randomUUID()}`,
+        content: '',
+      });
+
+      // Move the inline node into the wrapper
+      (wrapper as any).rootTextNode.add(child);
+
+      // Track the wrapper so future children go into it
+      (child as any).__wrappedBy = wrapper;
+
+      return wrapper;
+    }
+
+    return child;
   }
 }
