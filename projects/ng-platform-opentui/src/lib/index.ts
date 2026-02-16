@@ -12,13 +12,14 @@ import {
   ErrorHandler,
   ɵINJECTOR_SCOPE,
 } from '@angular/core';
-import { CLI_RENDERER, OpentuiRendererFactory2 } from './opentui-renderer';
+import { CLI_RENDERER } from './renderer/opentui-renderer';
 import { createCliRenderer } from '@opentui/core';
-import { Logger } from './logger';
-import { LoggingErrorHandler } from './error-handler';
-import { TuiLocationStrategy, TuiPlatformLocation } from './location';
+import { Logger } from './common/logger';
+import { LoggingErrorHandler } from './common/error-handler';
+import { TuiLocationStrategy, TuiPlatformLocation } from './routing/location';
 import { TitleStrategy } from '@angular/router';
-import { TuiTitleStrategy } from './title-strategy';
+import { TuiTitleStrategy } from './routing/title-strategy';
+import { OpentuiRendererFactory2 } from './renderer/opentui-renderer.factory';
 
 /**
  * Angular's compiler automatically assigns a default CSS selector
@@ -157,7 +158,10 @@ export async function bootstrapApplication(
   const cliRenderer = await createCliRenderer({
     exitOnCtrlC: true,
     onDestroy: () => process.exit(0),
+    autoFocus: true,
+    useMouse: true,
   });
+  cliRenderer.start();
   stripSelectors(component);
   return ɵinternalCreateApplication({
     rootComponent: component,

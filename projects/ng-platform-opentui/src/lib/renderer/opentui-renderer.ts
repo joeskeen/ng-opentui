@@ -1,9 +1,5 @@
 import {
-  RendererFactory2,
   Renderer2,
-  RendererType2,
-  Injectable,
-  inject,
   InjectionToken,
   Type,
 } from '@angular/core';
@@ -26,7 +22,7 @@ import {
   TextNodeRenderable,
   RootTextNodeRenderable,
 } from '@opentui/core';
-import { dumpRenderableTree, Logger } from './logger';
+import { dumpRenderableTree, Logger } from '../common/logger';
 import {
   BoldSpanRenderable,
   ItalicSpanRenderable,
@@ -36,7 +32,7 @@ import {
   UnderlineSpanRenderable,
 } from './text-renderables';
 import { randomUUID } from 'crypto';
-import { isBlockContainer, isInlineTextNode, isLayoutRenderable } from './helpers';
+import { isLayoutRenderable } from './helpers';
 
 const ELEMENT_MAP: Record<string, Type<BaseRenderable>> = {
   text: TextRenderable,
@@ -76,23 +72,7 @@ export type UnprotectedTextRenderable = TextNodeRenderable & {
   rootTextNode: RootTextNodeRenderable;
 };
 
-@Injectable({ providedIn: 'root' })
-export class OpentuiRendererFactory2 implements RendererFactory2 {
-  private readonly renderer = inject(CLI_RENDERER);
-  private readonly logger = inject(Logger);
-
-  createRenderer(hostElement: any, type: RendererType2 | null): Renderer2 {
-    return new OpentuiRenderer2(this.renderer, this.logger);
-  }
-
-  begin() {}
-  end() {}
-  whenRenderingDone() {
-    return Promise.resolve();
-  }
-}
-
-class OpentuiRenderer2 implements Renderer2 {
+export class OpentuiRenderer2 implements Renderer2 {
   hasRoot = false;
   children = new WeakMap<Renderable, any[]>();
 
@@ -327,9 +307,32 @@ class OpentuiRenderer2 implements Renderer2 {
   // -----------------------------
   // EVENTS
   // -----------------------------
-  listen(el: Renderable, event: string, callback: (...args: any[]) => void) {
-    this.logger.log(this.listen.name, { el, event, callback });
-    // TODO: map Angular events → OpenTUI events
+  listen(el: any, event: string, callback: (...args: any[]) => void): () => void {
+    this.logger.log('listen', { el, event });
+
+    // Map Angular DOM events → OpenTUI events
+    const map: Record<string, string> = {
+      click: 'activate',
+      keydown: 'onKey',
+      keyup: 'onKey',
+      input: 'onInput',
+      change: 'onChange',
+      focus: 'onFocus',
+      blur: 'onBlur',
+    };
+
+    const tuiEvent = map[event] ?? event;
+
+    const wrapped = (...args: any[]) => {
+      this.logger.log('EVENT FIRED', { el, event, args });
+      return callback(...args);
+    };
+
+    if (el && typeof el.on === 'function') {
+      const off = el.on(tuiEvent, wrapped);
+      return () => off?.();
+    }
+
     return () => {};
   }
 

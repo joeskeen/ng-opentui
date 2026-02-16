@@ -35,7 +35,7 @@ export class LineBreakRenderable extends SpanRenderable {
 }
 
 export class LinkRenderable extends SpanRenderable {
-  constructor(_: CliRenderer, options: TextNodeOptions = {}) {
-    super(_, { ...options, link: { url: '' } });
+  constructor(renderer: CliRenderer, options: TextNodeOptions = {}) {
+    super(renderer, { ...options, link: { url: '' } });
   }
 }

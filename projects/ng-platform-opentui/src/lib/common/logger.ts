@@ -38,7 +38,7 @@ export class Logger {
       if (Array.isArray(value)) {
         return `[${value.map((v) => this.valueToString(v))}]`;
       } else {
-        const typeName = value.constructor?.name;
+        const typeName = value.constructor?.name ?? (value as any).type?.constructor?.name;
         if (!typeName || typeName === 'Object') {
           return inspect(value, false, 1);
         } else {

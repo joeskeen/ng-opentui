@@ -1,17 +1,19 @@
 import { Component, effect, signal } from '@angular/core';
 import { examples } from './app.routes';
 import { Logger } from 'ng-platform-opentui';
+import { RouterLink } from '@angular/router';
 
 @Component({
   template: `
     <span>Examples</span>
-    <span>{{examples().length}}</span>
+    <span>{{ examples().length }}</span>
     <span>Before</span>
     @for (example of examples(); track example.id) {
-      <span>{{ example.title }}</span>
+      <a [routerLink]="'/examples/' + example.id" fg="#0000FF">{{ example.title }}</a>
     }
     <span>After</span>
   `,
+  imports: [RouterLink],
 })
 export class ExampleMenu {
   readonly examples = signal(examples);
