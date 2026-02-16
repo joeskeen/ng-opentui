@@ -210,8 +210,12 @@ export class OpentuiRenderer2 implements Renderer2 {
     dumpRenderableTree(this.cli.root);
   }
 
-  removeChild(parent: Renderable, child: any) {
+  removeChild(parent: Renderable, child: BaseRenderable) {
     this.logger.log(this.removeChild.name, { parent, child });
+    if (!parent) {
+      child?.destroy?.();
+      return;
+    }
 
     const list = this.getChildren(parent);
     const idx = list.indexOf(child);
@@ -228,6 +232,7 @@ export class OpentuiRenderer2 implements Renderer2 {
     if (child && typeof (parent as any).remove === 'function' && (child as any).id) {
       (parent as any).remove((child as any).id);
     }
+    child?.destroy?.();
   }
 
   selectRootElement(selector: string) {
@@ -339,6 +344,10 @@ export class OpentuiRenderer2 implements Renderer2 {
   }
 
   private getChildren(parent: Renderable) {
+    if (!parent) {
+      return [];
+    }
+
     if (!this.children.has(parent)) {
       this.children.set(parent, []);
     }
