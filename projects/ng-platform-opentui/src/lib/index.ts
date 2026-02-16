@@ -56,7 +56,7 @@ function stripSelectors(cmp: any) {
  * browser or DOM APIs. It is intended for environments such as Node,
  * CLIs, testing harnesses, or custom renderers where no DOM is present.
  */
-const PLATFORM_opentui_ID = 'opentui';
+const PLATFORM_OPENTUI_ID = 'opentui';
 
 /**
  * Minimal provider set required for Angular to bootstrap in a non‑DOM
@@ -132,7 +132,7 @@ const INTERNAL_OPENTUI_PLATFORM_PROVIDERS: StaticProvider[] = [
  * applications without DOM, browser, or zone dependencies.
  */
 export function platformOpentui(): PlatformRef {
-  return createPlatformFactory(platformCore, PLATFORM_opentui_ID, [
+  return createPlatformFactory(platformCore, PLATFORM_OPENTUI_ID, [
     ...INTERNAL_OPENTUI_PLATFORM_PROVIDERS,
   ])();
 }
