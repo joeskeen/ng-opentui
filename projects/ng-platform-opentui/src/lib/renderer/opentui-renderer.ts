@@ -17,6 +17,7 @@ import {
   BaseRenderable,
   TextNodeRenderable,
   RootTextNodeRenderable,
+  KeyEvent,
 } from '@opentui/core';
 import { dumpRenderableTree, Logger } from '../common/logger';
 import {
@@ -30,6 +31,8 @@ import {
 import { randomUUID } from 'crypto';
 import { isLayoutRenderable } from './helpers';
 import { forwardEvents } from '../events/forward-events';
+import { ParsedEvent } from '@angular/compiler';
+import { matchOpenTuiKey, parseAngularKeyEventName } from '../events/key-translation';
 
 const ELEMENT_MAP: Record<string, Type<BaseRenderable>> = {
   text: TextRenderable,
@@ -309,7 +312,7 @@ export class OpentuiRenderer2 implements Renderer2 {
   // -----------------------------
   // EVENTS
   // -----------------------------
-  
+
   readonly EVENT_MAP: Record<string, string> = {
     click: 'onMouseUp',
     mousedown: 'onMouseDown',
@@ -321,8 +324,24 @@ export class OpentuiRenderer2 implements Renderer2 {
     drop: 'onMouseDrop',
   };
   listen(el: Renderable, event: string, callback: Function) {
+    if (!el) {
+      el = this.cli.root;
+    }
+
+    const parsed = parseAngularKeyEventName(event);
+    if (parsed) {
+      // Global key listener
+      const handler = (key: KeyEvent) => {
+        if (matchOpenTuiKey(key, parsed.fullKey)) {
+          callback(key);
+        }
+      };
+      this.cli.keyInput.on('keypress', handler);
+      return () => this.cli.keyInput.off('keypress', handler);
+    }
+
     const prop = this.EVENT_MAP[event];
-    this.logger.log(this.listen.name, {el, event, callback, prop});
+    this.logger.log(this.listen.name, { el, event, callback, prop });
     if (!prop) return () => {};
 
     // Save previous handler so we can restore it

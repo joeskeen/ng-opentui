@@ -41,7 +41,6 @@
     "@angular/build": "^21.1.4",
     "@angular/cli": "^21.1.4",
     "@angular/compiler-cli": "^21.1.4",
-    "@angular/platform-server": "^21.1.4",
     "@types/node": "^25.2.3",
     "jsdom": "^27.4.0",
     "ng-packagr": "^21.1.0",
