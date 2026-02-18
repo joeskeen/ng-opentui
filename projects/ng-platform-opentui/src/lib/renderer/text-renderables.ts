@@ -1,4 +1,22 @@
-import { CliRenderer, TextAttributes, TextNodeOptions, TextNodeRenderable } from '@opentui/core';
+import {
+  CliRenderer,
+  TextAttributes,
+  TextNodeOptions,
+  TextNodeRenderable,
+  TextRenderable,
+} from '@opentui/core';
+
+export class TextWrapper extends TextRenderable {
+  constructor(renderer: CliRenderer, options: TextNodeOptions = {}) {
+    super(renderer, options);
+  }
+  
+  override remove(id: string): void {
+    super.remove(id);
+    this.parent?.remove(this.id)
+    this.destroySelf();
+  }
+}
 
 export class SpanRenderable extends TextNodeRenderable {
   constructor(_: CliRenderer | null = null, options: TextNodeOptions = {}) {

@@ -26,6 +26,7 @@ import {
   LineBreakRenderable,
   LinkRenderable,
   SpanRenderable,
+  TextWrapper,
   UnderlineSpanRenderable,
 } from './text-renderables';
 import { randomUUID } from 'crypto';
@@ -75,6 +76,7 @@ export type UnprotectedTextRenderable = TextNodeRenderable & {
 export class OpentuiRenderer2 implements Renderer2 {
   hasRoot = false;
   children = new WeakMap<Renderable, any[]>();
+  private nodeParents = new WeakMap<any, Renderable>();
 
   constructor(
     private cli: CliRenderer,
@@ -97,6 +99,12 @@ export class OpentuiRenderer2 implements Renderer2 {
 
   createElement(name: string): Renderable {
     this.logger.log(this.createElement.name, { name });
+    
+    // router-outlet is not rendered, just acts as a logical container
+    if (name === 'router-outlet') {
+      return new CommentNode('router-outlet') as any;
+    }
+    
     const ctor = ELEMENT_MAP[name] ?? BoxRenderable;
     return new ctor(this.cli, {
       id: `${name}-${randomUUID()}`,
@@ -124,6 +132,9 @@ export class OpentuiRenderer2 implements Renderer2 {
   appendChild(parent: Renderable, child: Renderable) {
     this.logger.log(this.appendChild.name, { parent, child });
     if (!child) return;
+
+    // Track parent for later removal
+    this.nodeParents.set(child, parent);
 
     const list = this.getChildren(parent);
     list.push(child);
@@ -162,6 +173,9 @@ export class OpentuiRenderer2 implements Renderer2 {
     dumpRenderableTree(this.cli.root);
 
     if (!child) return;
+
+    // Track parent for later removal
+    this.nodeParents.set(child, parent);
 
     const list = this.getChildren(parent);
     const index = list.indexOf(before);
@@ -213,8 +227,14 @@ export class OpentuiRenderer2 implements Renderer2 {
     dumpRenderableTree(this.cli.root);
   }
 
-  removeChild(parent: Renderable, child: BaseRenderable) {
+  removeChild(parent: Renderable | null, child: BaseRenderable) {
     this.logger.log(this.removeChild.name, { parent, child });
+    
+    // If parent not provided, look it up from our tracking
+    if (!parent) {
+      parent = this.nodeParents.get(child) ?? null;
+    }
+    
     if (!parent) {
       child?.destroy?.();
       return;
@@ -226,15 +246,21 @@ export class OpentuiRenderer2 implements Renderer2 {
       list.splice(idx, 1);
     }
 
-    // Comments: nothing to remove from layout
+    // Comments: only logical, no layout to remove
     if (child instanceof CommentNode) {
+      child.parent = null;
+      this.nodeParents.delete(child);
       return;
     }
 
+    // If this node was wrapped, remove the wrapper instead
+    const nodeToRemove = (child as any).__wrappedBy ?? child;
+
     // Layout nodes: remove by id if possible
-    if (child && typeof (parent as any).remove === 'function' && (child as any).id) {
-      (parent as any).remove((child as any).id);
+    if (nodeToRemove && typeof (parent as any).remove === 'function' && (nodeToRemove as any).id) {
+      (parent as any).remove((nodeToRemove as any).id);
     }
+    this.nodeParents.delete(child);
     child?.destroy?.();
   }
 
@@ -330,6 +356,7 @@ export class OpentuiRenderer2 implements Renderer2 {
 
     const parsed = parseAngularKeyEventName(event);
     if (parsed) {
+      this.logger.log(this.listen.name, { el, event, callback: callback.name ?? callback, parsed });
       // Global key listener
       const handler = (key: KeyEvent) => {
         if (matchOpenTuiKey(key, parsed.fullKey)) {
@@ -341,14 +368,14 @@ export class OpentuiRenderer2 implements Renderer2 {
     }
 
     const prop = this.EVENT_MAP[event];
-    this.logger.log(this.listen.name, { el, event, callback, prop });
+    this.logger.log(this.listen.name, { el, event, callback: callback.name ?? callback, prop });
     if (!prop) return () => {};
 
     // Save previous handler so we can restore it
     const previous = (el as any)[prop];
 
     (el as any)[prop] = (e: Event) => {
-      if (e.defaultPrevented) {
+      if (e?.defaultPrevented) {
         return;
       }
 
@@ -417,13 +444,13 @@ export class OpentuiRenderer2 implements Renderer2 {
       parent instanceof DiffRenderable;
 
     if (isInline && parentIsBlock) {
-      const wrapper = new TextRenderable(this.cli, {
-        id: `text-${randomUUID()}`,
-        content: '',
+      const wrapper = new TextWrapper(this.cli, {
+        id: `wrapper-${randomUUID()}`
       });
 
       // Move the inline node into the wrapper
       (wrapper as unknown as UnprotectedTextRenderable).rootTextNode.add(child);
+      wrapper.onSelectionChanged = () => false;
       // forward all events on the wrapper to the child
       forwardEvents(wrapper, child);
       // Track the wrapper so future children go into it

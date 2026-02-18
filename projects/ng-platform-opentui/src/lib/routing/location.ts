@@ -1,55 +1,62 @@
-import { Injectable } from '@angular/core';
+import { computed, Injectable, signal } from '@angular/core';
 import { LocationChangeListener, LocationStrategy, PlatformLocation } from '@angular/common';
 
 @Injectable({providedIn: 'root'})
 export class TuiPlatformLocation extends PlatformLocation {
-  private _path = '/';
-  private _search = '';
-  private _hash = '';
-  private popStateListeners: LocationChangeListener[] = [];
+  private _title = signal('');
+  private _state = signal<any>(null);
+  private _path = signal('/');
+  private _search = signal('');
+  private _hash = signal('');
+  private popStateListeners = signal<LocationChangeListener[]>([]);
+  private _href = computed(() => this._path() + this._search() + this._hash());
 
   override getBaseHrefFromDOM(): string {
     return '/';
   }
 
   override get pathname(): string {
-    return this._path;
+    return this._path();
   }
 
   override get search(): string {
-    return this._search;
+    return this._search();
   }
 
   override get hash(): string {
-    return this._hash;
+    return this._hash();
   }
 
   override get href(): string {
-    return this._path + this._search + this._hash;
+    return this._href();
   }
 
   override pushState(state: any, title: string, url: string): void {
+    this._state.set(state);
+    this._title.set(title);
     this._update(url);
   }
 
   override replaceState(state: any, title: string, url: string): void {
+    this._state.set(state);
+    this._title.set(title);
     this._update(url);
   }
 
   private _update(url: string) {
     const [path, query = '', hash = ''] = url.split(/[\?#]/);
-    this._path = path || '/';
-    this._search = query ? '?' + query : '';
-    this._hash = hash ? '#' + hash : '';
+    this._path.set(path || '/');
+    this._search.set(query ? '?' + query : '');
+    this._hash.set(hash ? '#' + hash : '');
 
     // Notify listeners
-    for (const fn of this.popStateListeners) fn({ type: 'locationChange', state: null });
+    for (const fn of this.popStateListeners()) fn({ type: 'locationChange', state: null });
   }
 
   override onPopState(fn: LocationChangeListener): VoidFunction {
-    this.popStateListeners.push(fn);
+    this.popStateListeners.update((listeners) => [...listeners, fn]);
     return () => {
-      this.popStateListeners = this.popStateListeners.filter((x) => x !== fn);
+      this.popStateListeners.update((listeners) => listeners.filter((x) => x !== fn));
     };
   }
 

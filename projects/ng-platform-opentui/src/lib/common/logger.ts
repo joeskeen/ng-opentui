@@ -20,7 +20,7 @@ export class Logger {
         .map((d) => {
           if (typeof d === 'object') {
             const values = Object.entries(d).map(
-              ([key, value]) => `${key}: ${this.valueToString(value)}`,
+              ([key, value]) => `${key}: ${valueToString(value)}`,
             );
             return `{${values.join(', ')}}`;
           }
@@ -32,14 +32,23 @@ export class Logger {
       this.log(`error while logging: ${err}`);
     }
   }
+}
 
-  private valueToString(value: unknown): string {
+export function valueToString(value: unknown): string {
     if (typeof value === 'object' && value) {
       if (Array.isArray(value)) {
-        return `[${value.map((v) => this.valueToString(v))}]`;
+        return `[${value.map((v) => valueToString(v))}]`;
       } else {
-        const typeName = value.constructor?.name ?? (value as any).type?.constructor?.name;
-        if (!typeName || typeName === 'Object') {
+        const candidates = [
+          (value as any).name,
+          value.constructor?.name,
+          (value as any).type?.name,
+          (value as any).type?.constructor?.name,
+          Object.getPrototypeOf(value)?.name,
+          Object.getPrototypeOf((value as any)?.type ?? {})?.name,
+        ];
+        const typeName = candidates.find((name) => name && name !== 'Object' && name !== 'Function');
+        if (!typeName) {
           return inspect(value, false, 1);
         } else {
           let id = '_id' in value ? value._id : '';
@@ -52,7 +61,6 @@ export class Logger {
       return String(value);
     }
   }
-}
 
 
 export function dumpRenderableTree(
@@ -86,17 +94,10 @@ export function dumpRenderableTree(
   try {
     children = [
       ...node.getChildren?.(),
-      ...node.rootTextNode?.getChildren?.()
+      ...node.rootTextNode?.getChildren?.(),
+      ...node._childrenInLayoutOrder ?? [],
     ];
   } catch {}
-
-  // Fallback: inspect internal arrays if needed
-  if (children.length === 0) {
-    const internal = (node as any)._childrenInLayoutOrder;
-    if (Array.isArray(internal)) {
-      children = internal;
-    }
-  }
 
   for (const child of children) {
     dumpRenderableTree(child, indent + '  ', seen);
