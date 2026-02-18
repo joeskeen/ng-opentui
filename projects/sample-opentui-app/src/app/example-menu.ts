@@ -7,7 +7,7 @@ import { RouterLink } from '@angular/router';
   template: `
     <span>NG-OPENTUI EXAMPLES</span>
     @for (example of examples(); track example.id) {
-      <a [routerLink]="'/examples/' + example.id" fg="#0000FF">{{ example.title }}</a>
+      <a [routerLink]="'/examples/' + example.id">{{ example.title }}</a>
     }
   `,
   imports: [RouterLink],

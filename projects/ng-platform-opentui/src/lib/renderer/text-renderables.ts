@@ -52,8 +52,9 @@ export class LineBreakRenderable extends SpanRenderable {
   }
 }
 
-export class LinkRenderable extends SpanRenderable {
+export class LinkRenderable extends UnderlineSpanRenderable {
   constructor(renderer: CliRenderer, options: TextNodeOptions = {}) {
     super(renderer, { ...options, link: { url: '' } });
+    this.fg = '#0165fc';
   }
 }
