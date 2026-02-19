@@ -1,16 +1,19 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, effect, inject } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { resolveRenderLib } from '@opentui/core';
-import { CLI_RENDERER } from 'ng-platform-opentui';
+import { CLI_RENDERER, Logger, TuiBox, TuiText } from 'ng-platform-opentui';
 
 @Component({
   template: `
-    <router-outlet></router-outlet>
-    @if (path() !== '/examples') {
-      <span [attr.flexGrow]="1">Press [ESC] to return to the main menu</span>
-    }
+    <box flexDirection="column" justifyContent="space-between" height="100%" width="100%">
+      <router-outlet></router-outlet>
+      @if (path() !== '/examples') {
+        <text [flexGrow]="1" [alignItems]="'flex-end'">Press [ESC] to return to the main menu</text>
+      }
+      <text [content]="path()"></text>
+    </box>
   `,
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, TuiBox, TuiText],
   host: {
     '(document:keydown.escape)': 'onEscape()',
     '(document:keydown.`)': 'toggleConsole()',
@@ -21,15 +24,20 @@ import { CLI_RENDERER } from 'ng-platform-opentui';
     '(document:keydown.shift.s)': 'stopRenderer()',
     '(document:keydown.shift.a)': 'autoRenderer()',
     '(document:keydown.control.a)': 'showArenaBytes()',
-    '[attr.flexDirection]': '"column"',
-    '[attr.justifyContent]': '"space-between"',
-    '[attr.height]': '"100%"',
-    '[attr.width]': '"100%"',
   },
 })
 export class App {
   private readonly renderer = inject(CLI_RENDERER);
   private readonly router = inject(Router);
+  private readonly logger = inject(Logger);
+
+  constructor() {
+    effect(() => {
+      const path = this.path();
+      this.logger.log({ path });
+    });
+  }
+
   path = computed(() => {
     const navigation = this.router.lastSuccessfulNavigation();
     return navigation?.finalUrl?.toString() ?? null;

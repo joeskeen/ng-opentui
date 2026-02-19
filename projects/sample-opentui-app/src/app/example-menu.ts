@@ -1,16 +1,16 @@
 import { Component, effect, signal } from '@angular/core';
 import { examples } from './app.routes';
-import { Logger } from 'ng-platform-opentui';
+import { Logger, TuiText } from 'ng-platform-opentui';
 import { RouterLink } from '@angular/router';
 
 @Component({
   template: `
-    <span>NG-OPENTUI EXAMPLES</span>
+    <text>NG-OPENTUI EXAMPLES</text>
     @for (example of examples(); track example.id) {
-      <a [routerLink]="'/examples/' + example.id">{{ example.title }}</a>
+      <text [routerLink]="'/examples/' + example.id" [content]="example.title"></text>
     }
   `,
-  imports: [RouterLink],
+  imports: [RouterLink, TuiText],
 })
 export class ExampleMenu {
   readonly examples = signal(examples);

@@ -1,464 +1,216 @@
-import { Renderer2, InjectionToken, Type } from '@angular/core';
-
 import {
-  type CliRenderer,
-  type Renderable,
-  TextRenderable,
-  BoxRenderable,
-  CodeRenderable,
-  DiffRenderable,
-  InputRenderable,
-  LineNumberRenderable,
-  MarkdownRenderable,
-  ScrollBoxRenderable,
-  SelectRenderable,
-  TabSelectRenderable,
-  TextareaRenderable,
-  BaseRenderable,
-  TextNodeRenderable,
-  RootTextNodeRenderable,
-  KeyEvent,
-} from '@opentui/core';
-import { dumpRenderableTree, Logger } from '../common/logger';
-import {
-  BoldSpanRenderable,
-  ItalicSpanRenderable,
-  LineBreakRenderable,
-  LinkRenderable,
-  SpanRenderable,
-  TextWrapper,
-  UnderlineSpanRenderable,
-} from './text-renderables';
-import { randomUUID } from 'crypto';
-import { isLayoutRenderable } from './helpers';
-import { forwardEvents } from '../events/forward-events';
-import { ParsedEvent } from '@angular/compiler';
-import { matchOpenTuiKey, parseAngularKeyEventName } from '../events/key-translation';
+  Renderer2,
+  ListenerOptions,
+  RendererStyleFlags2,
+  runInInjectionContext,
+  Injector,
+  InjectionToken,
+} from '@angular/core';
+import { TuiNode } from './tui-node';
+import { isMatch, parseAngularEventBinding } from '../events/event-translation';
+import { Logger } from '../common';
+import { CLI_RENDERER } from './cli-renderer';
+import { TuiRoot } from '../components/tui-root';
+import { CliRenderer, RootRenderable } from '@opentui/core';
+import { inspect } from 'node:util';
 
-const ELEMENT_MAP: Record<string, Type<BaseRenderable>> = {
-  text: TextRenderable,
-  box: BoxRenderable,
-  scrollbox: ScrollBoxRenderable,
-  input: InputRenderable,
-  textarea: TextareaRenderable,
-  select: SelectRenderable,
-  'tab-select': TabSelectRenderable,
-  code: CodeRenderable,
-  'line-number': LineNumberRenderable,
-  diff: DiffRenderable,
-  markdown: MarkdownRenderable,
+let tuiRoot: TuiNode<RootRenderable> | null = null;
 
-  // inline text
-  span: SpanRenderable,
-  b: BoldSpanRenderable,
-  strong: BoldSpanRenderable,
-  i: ItalicSpanRenderable,
-  em: ItalicSpanRenderable,
-  u: UnderlineSpanRenderable,
-  br: LineBreakRenderable,
-  a: LinkRenderable,
-};
-
-export class CommentNode {
-  readonly id = `comment-${randomUUID()}`;
-  parent: any = null;
-  constructor(readonly data: string) {
-    Logger.instance.log(CommentNode.name, { id: this.id, parent: this.parent, data });
-  }
-}
-
-export const CLI_RENDERER = new InjectionToken<CliRenderer>('ClI Renderer');
-
-export type UnprotectedTextRenderable = TextNodeRenderable & {
-  rootTextNode: RootTextNodeRenderable;
-};
+export const TUI_ROOT_NODE = new InjectionToken('TUI Root Node', {
+  providedIn: 'root',
+  factory: () => ({ getRoot: () => tuiRoot }),
+});
 
 export class OpentuiRenderer2 implements Renderer2 {
-  hasRoot = false;
-  children = new WeakMap<Renderable, any[]>();
-  private nodeParents = new WeakMap<any, Renderable>();
+  readonly rootNode: TuiNode<RootRenderable>;
+  readonly logger: Logger;
+  readonly cliRenderer: CliRenderer;
 
-  constructor(
-    private cli: CliRenderer,
-    private logger: Logger,
-  ) {}
-
-  get data() {
-    return {};
+  constructor(injector: Injector) {
+    this.logger = injector.get(Logger);
+    this.cliRenderer = injector.get(CLI_RENDERER);
+    this.rootNode = new TuiNode<RootRenderable>(this.cliRenderer, this.cliRenderer.root.id);
+    tuiRoot = this.rootNode;
+    this.rootNode.renderable.set(this.cliRenderer.root);
+    const rootNodeInjector = Injector.create({
+      providers: [{ provide: TuiNode, useValue: this.rootNode }],
+      parent: injector,
+    });
+    runInInjectionContext(rootNodeInjector, () => {
+      const rootComponent = new TuiRoot();
+      this.rootNode.component.set(rootComponent as any);
+      rootComponent.ngOnInit();
+    });
   }
 
-  destroy() {}
-
-  // -----------------------------
-  // ELEMENT CREATION
-  // -----------------------------
-  createComment(data: string) {
-    this.logger.log(this.createComment.name, { data });
-    return new CommentNode(data);
-  }
-
-  createElement(name: string): Renderable {
+  createElement(name: string) {
     this.logger.log(this.createElement.name, { name });
-    
-    // router-outlet is not rendered, just acts as a logical container
-    if (name === 'router-outlet') {
-      return new CommentNode('router-outlet') as any;
-    }
-    
-    const ctor = ELEMENT_MAP[name] ?? BoxRenderable;
-    return new ctor(this.cli, {
-      id: `${name}-${randomUUID()}`,
-    }) as Renderable;
+    return new TuiNode(this.cliRenderer, `element:${name}`);
+  }
+  createComment(value: string) {
+    this.logger.log(this.createComment.name, { value });
+    return new TuiNode(this.cliRenderer, `comment:"${value}"`);
   }
 
   createText(value: string) {
     this.logger.log(this.createText.name, { value });
-
-    const node = new TextNodeRenderable({});
-    if (value != null && value !== '') {
-      node.add(String(value));
-    }
-
+    const node = new TuiNode(this.cliRenderer, `text value:"${value}"`, value);
+    node.value.set(value);
     return node;
   }
-
-  destroyNode(...args: any[]) {
-    this.logger.log(this.destroyNode.name, { args });
+  setValue(node: TuiNode, value: string): void {
+    // Error: NG0600: Writing to signals is not allowed while Angular renders the template (eg. interpolations)
+    // node?.value.set(value);
   }
 
-  // -----------------------------
-  // TREE OPERATIONS
-  // -----------------------------
-  appendChild(parent: Renderable, child: Renderable) {
-    this.logger.log(this.appendChild.name, { parent, child });
-    if (!child) return;
-
-    // Track parent for later removal
-    this.nodeParents.set(child, parent);
-
-    const list = this.getChildren(parent);
-    list.push(child);
-
-    // Comments: only logical, no layout
-    if (child instanceof CommentNode) {
-      child.parent = parent;
+  appendChild(parent: TuiNode, newChild: TuiNode): void {
+    this.logger.log(this.appendChild.name, { parent, newChild });
+    if (!newChild) {
       return;
     }
 
-    // Text containers: delegate to their own add()
-    if (parent instanceof TextNodeRenderable) {
-      parent.add(child);
-      child.parent = parent;
+    if (!parent) {
+      parent = this.rootNode;
+    }
+    if (parent === newChild) {
+      throw new Error(`Cannot append node ${newChild} to itself`);
+    }
+
+    parent.children.update((children) => [...children, newChild]);
+    newChild.parent.set(parent);
+  }
+
+  insertBefore(parent: TuiNode, newChild: TuiNode, refChild: TuiNode, _isMove?: boolean): void {
+    this.logger.log(this.insertBefore.name, { parent, newChild, refChild, _isMove });
+    if (!refChild) {
+      this.appendChild(parent, newChild);
       return;
     }
 
-    const wrapped = this.wrapInlineIfNeeded(parent, child);
-    // DOM semantics: appendChild moves existing nodes
-    if (wrapped.parent && wrapped.parent !== parent) {
-      wrapped.parent.remove(wrapped.id);
+    if (!parent) {
+      parent = this.rootNode;
+    }
+    if (parent === newChild) {
+      throw new Error(`Cannot insert node ${newChild} into itself`);
+    }
+    if (newChild === refChild) {
+      throw new Error(`Cannot insert node ${newChild} before itself`);
     }
 
-    parent.add(wrapped);
-    wrapped.parent = parent;
-
-    // Attach first layout root to cli.root
-    if (!this.hasRoot && parent !== this.cli.root) {
-      this.cli.root.add(parent);
-      this.hasRoot = true;
-    }
+    parent.children.update((children) => {
+      const newChildren = children.filter((child) => child !== newChild);
+      const refIndex = newChildren.indexOf(refChild);
+      if (refIndex === -1) {
+        throw new Error(`Reference child ${refChild} not found in parent ${parent}`);
+      }
+      newChildren.splice(refIndex, 0, newChild);
+      return newChildren;
+    });
+    newChild.parent.set(parent);
   }
 
-  insertBefore(parent: Renderable, child: any, before: any | null) {
-    this.logger.log(this.insertBefore.name, { parent, child, before });
-    dumpRenderableTree(this.cli.root);
+  removeChild(
+    _parent: TuiNode,
+    oldChild: TuiNode,
+    _isHostElement?: boolean,
+    _requireSynchronousElementRemoval?: boolean,
+  ): void {
+    const parent = oldChild.parent();
+    if (!parent) {
+      return;
+    }
+    parent.children.update((children) => {
+      if (!children.includes(oldChild)) {
+        return children;
+      }
+      return children.filter((child) => child !== oldChild);
+    });
+    try {
+      oldChild.parent.set(null);
+    } catch {}
+  }
 
-    if (!child) return;
+  selectRootElement(_selectorOrNode: string | any, _preserveContent?: boolean) {
+    return this.rootNode;
+  }
 
-    // Track parent for later removal
-    this.nodeParents.set(child, parent);
+  parentNode(node: TuiNode) {
+    return node.parent();
+  }
 
-    const list = this.getChildren(parent);
-    const index = list.indexOf(before);
-
-    // If anchor not found, just append
+  nextSibling(node: TuiNode) {
+    this.logger.log(this.nextSibling.name, { node });
+    const parent = node.parent();
+    if (!parent) {
+      return null;
+    }
+    const siblings = parent.children();
+    const index = siblings.indexOf(node);
     if (index === -1) {
-      dumpRenderableTree(this.cli.root);
-      return this.appendChild(parent, child);
+      throw new Error(`Node ${node} is not a child of its parent ${parent}`);
     }
-
-    // Insert into logical list
-    list.splice(index, 0, child);
-
-    // Comments: logical only
-    if (child instanceof CommentNode) {
-      child.parent = parent;
-      return;
-    }
-
-    // Text containers: no positional insert, just append
-    if (parent instanceof TextNodeRenderable) {
-      parent.add(child);
-      child.parent = parent;
-      dumpRenderableTree(this.cli.root);
-      return;
-    }
-
-    const wrapped = this.wrapInlineIfNeeded(parent, child);
-    if (wrapped.parent && wrapped.parent !== parent) {
-      wrapped.parent.remove(wrapped.id);
-    }
-
-    // Find the next layout sibling after this logical index
-    const layoutSibling = this.findLayoutSibling(parent, index + 1);
-
-    if (layoutSibling && typeof (parent as any).insertBefore === 'function') {
-      (parent as any).insertBefore(wrapped, layoutSibling);
-    } else {
-      parent.add(wrapped);
-    }
-
-    wrapped.parent = parent;
-
-    // Same root-attach invariant as appendChild
-    if (!this.hasRoot && parent !== this.cli.root) {
-      this.cli.root.add(parent);
-      this.hasRoot = true;
-    }
-    dumpRenderableTree(this.cli.root);
+    return siblings[index + 1] || null;
   }
 
-  removeChild(parent: Renderable | null, child: BaseRenderable) {
-    this.logger.log(this.removeChild.name, { parent, child });
-    
-    // If parent not provided, look it up from our tracking
-    if (!parent) {
-      parent = this.nodeParents.get(child) ?? null;
+  listen(
+    target: 'window' | 'document' | 'body' | TuiNode,
+    eventName: string,
+    callback: (event: any) => boolean | void,
+    _options?: ListenerOptions,
+  ): () => void {
+    if (!target || typeof target === 'string') {
+      target = this.rootNode;
     }
-    
-    if (!parent) {
-      child?.destroy?.();
-      return;
-    }
-
-    const list = this.getChildren(parent);
-    const idx = list.indexOf(child);
-    if (idx !== -1) {
-      list.splice(idx, 1);
-    }
-
-    // Comments: only logical, no layout to remove
-    if (child instanceof CommentNode) {
-      child.parent = null;
-      this.nodeParents.delete(child);
-      return;
-    }
-
-    // If this node was wrapped, remove the wrapper instead
-    const nodeToRemove = (child as any).__wrappedBy ?? child;
-
-    // Layout nodes: remove by id if possible
-    if (nodeToRemove && typeof (parent as any).remove === 'function' && (nodeToRemove as any).id) {
-      (parent as any).remove((nodeToRemove as any).id);
-    }
-    this.nodeParents.delete(child);
-    child?.destroy?.();
-  }
-
-  selectRootElement(selector: string) {
-    this.logger.log(this.selectRootElement.name, { selector });
-    return this.cli.root; // keep this
-  }
-
-  parentNode(node: Renderable) {
-    this.logger.log(this.parentNode.name, { node });
-    return node?.parent ?? null;
-  }
-
-  nextSibling(node: Renderable) {
-    return null;
-  }
-
-  // -----------------------------
-  // ATTRIBUTES / PROPERTIES
-  // -----------------------------
-  setAttribute(el: Renderable, name: string, value: string) {
-    this.logger.log(this.setAttribute.name, { el, name, value });
-    // TODO: map Angular attributes → OpenTUI props
-    (el as any)[name] = value;
-  }
-
-  removeAttribute(el: Renderable, name: string) {
-    this.logger.log(this.setAttribute.name, { el, name });
-    delete (el as any)[name];
-  }
-
-  addClass(...args: any[]) {
-    this.logger.log(this.addClass.name, { args });
-  }
-  removeClass(...args: any[]) {
-    this.logger.log(this.removeClass.name, { args });
-  }
-
-  setStyle(el: Renderable, style: string, value: any) {
-    this.logger.log(this.setStyle.name, { el, style, value });
-    // TODO: map Angular styles → OpenTUI props
-  }
-
-  removeStyle(...args: any[]) {
-    this.logger.log(this.removeStyle.name, { args });
-  }
-
-  setProperty(el: Renderable, name: string, value: any) {
-    this.logger.log(this.setProperty.name, { el, name, value });
-    (el as any)[name] = value;
-  }
-
-  setValue(el: any, value: string | null | undefined) {
-    this.logger.log(this.setValue.name, { el, value });
-
-    if (el instanceof TextNodeRenderable) {
-      // Clear and replace content
-      (el as any).clear?.();
-      if (value != null && value !== '') {
-        el.add(String(value));
-      }
-      return;
-    }
-
-    // Fallback: if you ever use SpanRenderable as text container directly
-    if (el instanceof SpanRenderable) {
-      (el as any).clear?.();
-      if (value != null && value !== '') {
-        el.add(String(value));
-      }
-      return;
-    }
-  }
-
-  // -----------------------------
-  // EVENTS
-  // -----------------------------
-
-  readonly EVENT_MAP: Record<string, string> = {
-    click: 'onMouseUp',
-    mousedown: 'onMouseDown',
-    mouseup: 'onMouseUp',
-    mouseover: 'onMouseOver',
-    mouseout: 'onMouseOut',
-    mousemove: 'onMouseMove',
-    drag: 'onMouseDrag',
-    drop: 'onMouseDrop',
-  };
-  listen(el: Renderable, event: string, callback: Function) {
-    if (!el) {
-      el = this.cli.root;
-    }
-
-    const parsed = parseAngularKeyEventName(event);
-    if (parsed) {
-      this.logger.log(this.listen.name, { el, event, callback: callback.name ?? callback, parsed });
-      // Global key listener
-      const handler = (key: KeyEvent) => {
-        if (matchOpenTuiKey(key, parsed.fullKey)) {
-          callback(key);
+    const targetNode = target as TuiNode;
+    this.logger.log(this.listen.name, { target, eventName, _options, targetNode });
+    const eventPattern = parseAngularEventBinding(eventName);
+    if (eventPattern) {
+      const handler = (event: any) => {
+        if (isMatch(eventPattern, event)) {
+          callback(event);
         }
       };
-      this.cli.keyInput.on('keypress', handler);
-      return () => this.cli.keyInput.off('keypress', handler);
+
+      const registration = { event: eventPattern.eventType, handler };
+      targetNode.listeners.update((listeners) => [...listeners, registration]);
+      return () => targetNode.listeners.update((listeners) => listeners.filter((l) => l !== registration));
+    } else {
+      throw new Error(`Unsupported event pattern: ${eventName}`);
     }
-
-    const prop = this.EVENT_MAP[event];
-    this.logger.log(this.listen.name, { el, event, callback: callback.name ?? callback, prop });
-    if (!prop) return () => {};
-
-    // Save previous handler so we can restore it
-    const previous = (el as any)[prop];
-
-    (el as any)[prop] = (e: Event) => {
-      if (e?.defaultPrevented) {
-        return;
-      }
-
-      callback(e);
-      previous?.(e);
-    };
-
-    return () => {
-      // Restore previous handler on teardown
-      (el as any)[prop] = previous;
-    };
   }
 
-  private getChildren(parent: Renderable) {
-    if (!parent) {
-      return [];
-    }
-
-    if (!this.children.has(parent)) {
-      this.children.set(parent, []);
-    }
-    return this.children.get(parent)!;
+  get data(): { [key: string]: any } {
+    return {}; // unused, see https://angular.dev/api/core/Renderer2#data
   }
-
-  private getLayoutFor(node: any): Renderable | null {
-    if (!node) return null;
-
-    // Direct layout node
-    if (isLayoutRenderable(node)) {
-      return node as Renderable;
-    }
-
-    // Inline nodes that were wrapped (TextNodeRenderable, etc.)
-    const wrapped = (node as any).__wrappedBy;
-    if (wrapped && isLayoutRenderable(wrapped)) {
-      return wrapped as Renderable;
-    }
-
-    return null;
+  destroy() {
+    this.logger.log(this.destroy.name);
+    // this.rootNode.renderable()?.destroyRecursively();
+    /* ngOnDestroy will take care of this */
   }
-
-  private findLayoutSibling(parent: Renderable, startIndex: number): Renderable | null {
-    const list = this.getChildren(parent);
-
-    for (let i = startIndex; i < list.length; i++) {
-      const layout = this.getLayoutFor(list[i]);
-      if (layout) {
-        return layout;
-      }
-    }
-
-    return null;
+  destroyNode(node: TuiNode) {
+    this.logger.log(this.destroyNode.name, { node });
+    // node.renderable()?.destroy();
+    /* ngOnDestroy will take care of this */
   }
-
-  private wrapInlineIfNeeded(parent: Renderable, child: Renderable): Renderable {
-    const isInline = child instanceof TextNodeRenderable;
-    const parentIsBlock =
-      parent instanceof TextRenderable ||
-      parent instanceof BoxRenderable ||
-      parent instanceof ScrollBoxRenderable ||
-      parent instanceof SelectRenderable ||
-      parent instanceof InputRenderable ||
-      parent instanceof TextareaRenderable ||
-      parent instanceof MarkdownRenderable ||
-      parent instanceof CodeRenderable ||
-      parent instanceof DiffRenderable;
-
-    if (isInline && parentIsBlock) {
-      const wrapper = new TextWrapper(this.cli, {
-        id: `wrapper-${randomUUID()}`
-      });
-
-      // Move the inline node into the wrapper
-      (wrapper as unknown as UnprotectedTextRenderable).rootTextNode.add(child);
-      wrapper.onSelectionChanged = () => false;
-      // forward all events on the wrapper to the child
-      forwardEvents(wrapper, child);
-      // Track the wrapper so future children go into it
-      (child as any).__wrappedBy = wrapper;
-
-      return wrapper;
-    }
-
-    return child;
+  setProperty(_el: TuiNode, _name: string, _value: any): void {
+    /* this is handled via the component's input synchronization */
+  }
+  setAttribute(_el: TuiNode, _name: string, _value: string, _namespace?: string | null): void {
+    /* this is handled via the component's input synchronization */
+  }
+  removeAttribute(_el: TuiNode, _name: string, _namespace?: string | null): void {
+    /* this is handled via the component's input synchronization */
+  }
+  setStyle(_el: TuiNode, _style: string, _value: any, _flags?: RendererStyleFlags2): void {
+    /* this is handled via the component's input synchronization */
+  }
+  removeStyle(_el: TuiNode, _style: string, _flags?: RendererStyleFlags2): void {
+    /* this is handled via the component's input synchronization */
+  }
+  addClass(_el: TuiNode, _name: string): void {
+    /* this is handled via the component's input synchronization */
+  }
+  removeClass(_el: TuiNode, _name: string): void {
+    /* this is handled via the component's input synchronization */
   }
 }
