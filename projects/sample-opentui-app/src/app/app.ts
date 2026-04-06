@@ -1,7 +1,7 @@
-import { Component, computed, effect, inject } from '@angular/core';
+import { Component, computed, effect, inject, OnInit } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { resolveRenderLib } from '@opentui/core';
-import { CLI_RENDERER, Logger, TuiBox, TuiText } from 'ng-platform-opentui';
+import { CLI_RENDERER, GlobalKeyboardEventsService, Logger, TuiBox, TuiText } from 'ng-platform-opentui';
 
 @Component({
   template: `
@@ -14,22 +14,12 @@ import { CLI_RENDERER, Logger, TuiBox, TuiText } from 'ng-platform-opentui';
     </box>
   `,
   imports: [RouterOutlet, TuiBox, TuiText],
-  host: {
-    '(document:keydown.escape)': 'onEscape()',
-    '(document:keydown.`)': 'toggleConsole()',
-    '(document:keydown.")': 'toggleConsole()',
-    '(document:keydown.dot)': 'toggleDebugOverlay()',
-    '(document:keydown.control.g)': 'dumpHitGrid()',
-    '(document:keydown.shift.l)': 'startRenderer()',
-    '(document:keydown.shift.s)': 'stopRenderer()',
-    '(document:keydown.shift.a)': 'autoRenderer()',
-    '(document:keydown.control.a)': 'showArenaBytes()',
-  },
 })
-export class App {
+export class App implements OnInit {
   private readonly renderer = inject(CLI_RENDERER);
   private readonly router = inject(Router);
   private readonly logger = inject(Logger);
+  private readonly keyboardEvents = inject(GlobalKeyboardEventsService);
 
   constructor() {
     effect(() => {
@@ -38,14 +28,32 @@ export class App {
     });
   }
 
+  ngOnInit() {
+    this.keyboardEvents.keyPress$.subscribe((event) => {
+      if (event.name === 'escape') {
+        this.router.navigateByUrl('/');
+      } else if (event.name === '`') {
+        this.toggleConsole();
+      } else if (event.name === '.') {
+        this.toggleDebugOverlay();
+      } else if (event.ctrl && event.name === 'g') {
+        this.dumpHitGrid();
+      } else if (event.shift && event.name === 'l') {
+        this.startRenderer();
+      } else if (event.shift && event.name === 's') {
+        this.stopRenderer();
+      } else if (event.shift && event.name === 'a') {
+        this.autoRenderer();
+      } else if (event.ctrl && event.name === 'a') {
+        this.showArenaBytes();
+      }
+    });
+  }
+
   path = computed(() => {
     const navigation = this.router.lastSuccessfulNavigation();
     return navigation?.finalUrl?.toString() ?? null;
   });
-
-  onEscape() {
-    this.router.navigateByUrl('/');
-  }
 
   toggleConsole() {
     this.renderer.console.toggle();
@@ -56,7 +64,6 @@ export class App {
   }
 
   dumpHitGrid() {
-    console.log('dumping hit grid');
     this.renderer.dumpHitGrid();
   }
 

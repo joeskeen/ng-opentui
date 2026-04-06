@@ -23,6 +23,7 @@ import { TuiTitleStrategy } from './routing/title-strategy';
 import { OpentuiRendererFactory2 } from './renderer/opentui-renderer.factory';
 import { CLI_RENDERER } from './renderer/cli-renderer';
 import { TUI_ROOT_NODE, TuiNode } from './renderer';
+import { EventDispatcherService } from './events';
 
 /**
  * Angular's compiler automatically assigns a default CSS selector
@@ -174,6 +175,7 @@ export async function bootstrapApplication(
       { provide: LocationStrategy, useClass: TuiLocationStrategy },
       { provide: PlatformLocation, useClass: TuiPlatformLocation },
       { provide: TitleStrategy, useClass: TuiTitleStrategy },
+      { provide: EventDispatcherService, useClass: EventDispatcherService },
       ...applicationConfig.providers,
     ],
     platformProviders: [...INTERNAL_OPENTUI_PLATFORM_PROVIDERS],

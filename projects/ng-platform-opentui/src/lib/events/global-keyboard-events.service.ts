@@ -8,8 +8,9 @@ import { CLI_RENDERER } from '../renderer/cli-renderer';
 export class GlobalKeyboardEventsService {
   private readonly cliRenderer = inject(CLI_RENDERER);
 
-  readonly keyPress$ = fromEvent(this.cliRenderer.keyInput, 'keypress')
-    .pipe(map((event) => event as KeyEvent));
+  readonly keyPress$ = fromEvent(this.cliRenderer.keyInput, 'keypress').pipe(
+    map((event) => event as KeyEvent),
+  );
 
   keyBind(keyBinding: EventPattern<KeyEvent> | string | null): Observable<KeyEvent> {
     if (typeof keyBinding === 'string') {

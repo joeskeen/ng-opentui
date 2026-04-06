@@ -6,6 +6,7 @@ import { CLI_RENDERER } from '../renderer/cli-renderer';
 @Injectable({ providedIn: 'root' })
 export class GlobalMouseEventsService {
   private readonly cliRenderer = inject(CLI_RENDERER);
+
   readonly mouse$ = this.registerMouseEvent('onMouse');
   readonly mouseDown$ = this.registerMouseEvent('onMouseDown');
   readonly mouseDrag$ = this.registerMouseEvent('onMouseDrag');
@@ -16,6 +17,7 @@ export class GlobalMouseEventsService {
   readonly mouseOver$ = this.registerMouseEvent('onMouseOver');
   readonly mouseScroll$ = this.registerMouseEvent('onMouseScroll');
   readonly mouseUp$ = this.registerMouseEvent('onMouseUp');
+  readonly click$ = this.mouseUp$;
   readonly allMouseEvent$ = merge(
     this.mouse$,
     this.mouseDown$,
