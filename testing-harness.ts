@@ -93,16 +93,11 @@ async function runTest() {
   const harness = await OpenTUIHarness.launch();
   
   await harness.wait(2000);
-  console.log('=== Initial output (examples) ===');
+  console.log('=== Initial output (examples menu) ===');
   const output = harness.getOutput();
-  console.log(output);
-  
-  console.log('\n=== Sending Enter to navigate to example ===');
-  await harness.sendEnter();
-  await harness.wait(1500);
-  
-  console.log('\n=== Output after navigating to example ===');
-  console.log(harness.getOutput());
+  // Extract visible text lines
+  const lines = output.split('\n').filter(l => l.includes('Examples') || l.includes('Simple') || l.includes('clock') || l.includes('navigate'));
+  console.log(lines.join('\n'));
   
   await harness.terminate();
 }

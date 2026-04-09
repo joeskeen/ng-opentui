@@ -6,3 +6,4 @@ export * from './text-node';
 export * from './tui-base.component';
 export * from './tui-renderable.component';
 export * from './tui-router-link.directive';
+export * from './select';
