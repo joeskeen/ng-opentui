@@ -7,6 +7,7 @@ import { GlobalKeyboardEventsService, Logger, TuiBox, TuiSelect, TuiText } from 
   template: `
     <box flexDirection="column" height="100%" borderStyle="single" borderColor="#475569" title="Examples" titleAlignment="center">
       <select 
+        [focusable]="true"
         [flexGrow]="1"
         [options]="selectOptions()"
         [selectedIndex]="selectedIndex()"
@@ -19,6 +20,7 @@ import { GlobalKeyboardEventsService, Logger, TuiBox, TuiSelect, TuiText } from 
         [showDescription]="true"
         [wrapSelection]="true"
         (itemSelected)="onSelect($event)"
+        (keyup)="onKeyUp($event)"
       ></select>
       <text content="↑↓/j/k navigate | Enter run | Esc return | ctrl+c quit" fg="#94A3B8" alignSelf="center"></text>
     </box>
@@ -47,6 +49,10 @@ export class ExampleMenu implements OnInit {
     });
   }
 
+  onKeyUp(event: KeyboardEvent) {
+    console.log(event);
+  }
+
   ngOnInit() {
     this.keyboardEvents.keyPress$.subscribe((event) => {
       const currentIndex = this.selectedIndex();
@@ -66,7 +72,7 @@ export class ExampleMenu implements OnInit {
     this.navigateToExample(index);
   }
 
-  private navigateToExample(index: number) {
+  navigateToExample(index: number) {
     const example = this.examples()[index];
     if (example) {
       this.router.navigateByUrl(`/examples/${example.id}`);

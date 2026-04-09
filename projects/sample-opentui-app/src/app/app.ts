@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, OnInit } from '@angular/core';
+import { Component, computed, inject, OnInit } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { resolveRenderLib } from '@opentui/core';
 import { CLI_RENDERER, GlobalKeyboardEventsService, Logger, TuiBox, TuiText } from 'ng-platform-opentui';
@@ -10,7 +10,7 @@ import { CLI_RENDERER, GlobalKeyboardEventsService, Logger, TuiBox, TuiText } fr
       @if (path() !== '/examples') {
         <text [flexGrow]="1" [alignItems]="'flex-end'">Press [ESC] to return to the main menu</text>
       }
-      <text [content]="path()"></text>
+      <text [content]="'Current Router path: ' + path()"></text>
     </box>
   `,
   imports: [RouterOutlet, TuiBox, TuiText],
@@ -20,13 +20,6 @@ export class App implements OnInit {
   private readonly router = inject(Router);
   private readonly logger = inject(Logger);
   private readonly keyboardEvents = inject(GlobalKeyboardEventsService);
-
-  constructor() {
-    effect(() => {
-      const path = this.path();
-      this.logger.log({ path });
-    });
-  }
 
   ngOnInit() {
     this.keyboardEvents.keyPress$.subscribe((event) => {

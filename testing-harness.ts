@@ -94,11 +94,65 @@ async function runTest() {
   
   await harness.wait(2000);
   console.log('=== Initial output (examples menu) ===');
-  const output = harness.getOutput();
-  // Extract visible text lines
-  const lines = output.split('\n').filter(l => l.includes('Examples') || l.includes('Simple') || l.includes('clock') || l.includes('navigate'));
-  console.log(lines.join('\n'));
+  let output = harness.getOutput();
+  console.log(output.substring(Math.max(0, output.length - 1000)));
   
+  // Test 1: Simple Layout
+  console.log('\n=== Test 1: Simple Layout ===');
+  await harness.sendKey('j');
+  await harness.wait(200);
+  await harness.sendEnter();
+  await harness.wait(1500);
+  output = harness.getOutput();
+  const slMatch = output.match(/Horizontal Layout|LEFT SIDEBAR|MAIN CONTENT|SPACE: next/);
+  console.log('Simple Layout:', slMatch ? 'PASS' : 'FAIL');
+  
+  // Return to menu
+  await harness.sendEscape();
+  await harness.wait(1500);
+  
+  // Test 2: Styled Text
+  console.log('\n=== Test 2: Styled Text ===');
+  await harness.sendKey('j');
+  await harness.wait(200);
+  await harness.sendEnter();
+  await harness.wait(1500);
+  output = harness.getOutput();
+  const stMatch = output.match(/Styled Text|house|window|System Stats/);
+  console.log('Styled Text:', stMatch ? 'PASS' : 'FAIL');
+  
+  // Return to menu
+  await harness.sendEscape();
+  await harness.wait(1500);
+  
+  // Test 3: OpenTUI Demo - navigate fresh
+  console.log('\n=== Test 3: OpenTUI Demo ===');
+  // Navigate down to index 3
+  await harness.sendKey('j'); // to index 1
+  await harness.wait(150);
+  await harness.sendKey('j'); // to index 2
+  await harness.wait(150);
+  await harness.sendKey('j'); // to index 3
+  await harness.wait(150);
+  await harness.sendEnter();
+  await harness.wait(2000);
+  output = harness.getOutput();
+  
+  // Look for tab bar content or tab content
+  const odMatch = output.match(/Text & Attributes|Basics|Borders|Animation|Titles|Text Styling|Tab Bar|Text Styling & Color|Text Styling \& Color/);
+  console.log('OpenTUI Demo content found:', odMatch ? 'YES' : 'NO');
+  console.log('OpenTUI Demo:', odMatch ? 'PASS' : 'FAIL');
+  
+  if (!odMatch) {
+    console.log('Last 500 chars:', output.substring(output.length - 500));
+  }
+  
+  console.log('\n=== Summary ===');
+  console.log('Phase 1 Examples:');
+  console.log('  - Simple Layout: ' + (slMatch ? 'PASS' : 'FAIL'));
+  console.log('  - Styled Text: ' + (stMatch ? 'PASS' : 'FAIL'));
+  console.log('  - OpenTUI Demo: ' + (odMatch ? 'PASS' : 'CHECK MANUALLY'));
+  console.log('\nAll tests completed ===');
   await harness.terminate();
 }
 

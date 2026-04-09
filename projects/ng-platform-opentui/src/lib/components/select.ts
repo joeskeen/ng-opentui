@@ -120,6 +120,6 @@ export class TuiSelect extends TuiRenderableComponent<SelectRenderable> {
       renderable.on(SelectRenderableEvents.ITEM_SELECTED, (index: number) => {
         this.itemSelected.emit(index);
       });
-    }, { allowSignalWrites: true });
+    });
   }
 }
